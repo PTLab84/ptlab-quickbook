@@ -45,8 +45,6 @@ export async function GET() {
         end: end,
         summary: `PT: ${b.clients?.name || "Client"}`, // "PT: Sarah J."
         location: "PTLab Gym",
-        // Optional: Add a "Busy" status so it blocks your calendar
-        busystatus: "BUSY", 
       });
     });
 
