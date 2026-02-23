@@ -640,7 +640,7 @@ export default function PTLabScheduler() {
                             const isSelected = selected.has(key);
 
                             let ownerType = "empty";
-                            let ownerId = null;
+                            let ownerId: string | null = null;
                             let title = "";
                             let bg = "transparent";
                             let color = "white";
