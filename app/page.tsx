@@ -11,7 +11,7 @@ const PTLAB = {
   orange: "#f05a28",
   white: "#ffffff",
   bg: "#f3f4f6",
-  mainBlue: "#0160C9", // The requested classic solid blue
+  mainBlue: "#0160C9", 
 };
 
 type Client = { id: string; name: string; type?: "intro" | "regular" | "ita_job" | "extra"; sessions_remaining: number; historical_attended: number };
@@ -63,7 +63,6 @@ export default function PTLabScheduler() {
   const [showItaPanel, setShowItaPanel] = useState(false);
   const [itaName, setItaName] = useState("");
   
-  // Extra Mode State
   const [showExtraPanel, setShowExtraPanel] = useState(false);
   const [extraInput, setExtraInput] = useState("");
   const [activeExtraActivity, setActiveExtraActivity] = useState<string | null>(null);
@@ -173,11 +172,10 @@ export default function PTLabScheduler() {
         return;
     }
 
-    // Filter out Michelle and One-Off "Extra" Activities from duplication
     const validBookings = oldBookings.filter(b => {
         if (b.client_id === michelleClient?.id) return false;
         const cObj = clients.find(c => c.id === b.client_id);
-        if (cObj && cObj.type === 'extra') return false; // Ignores one-off extras like Doctor appointments
+        if (cObj && cObj.type === 'extra') return false; 
         return true;
     });
 
@@ -246,7 +244,19 @@ export default function PTLabScheduler() {
   }
 
   async function confirm() {
-    // 1. Handle "Extra" Mode Confirmation
+    const isMichelle = activeClientId === michelleClient?.id;
+    
+    if (!isMichelle && !activeExtraActivity) {
+        const hasConflict = Array.from(selected).some(slotKey => 
+            bookings.some(b => b.slotKey === slotKey && b.clientId !== michelleClient?.id)
+        );
+        
+        if (hasConflict) {
+            alert("This spot is already taken! Only Michelle appointments can be layered over existing bookings.");
+            return; 
+        }
+    }
+
     if (activeExtraActivity) {
         setLoading(true);
         const { data: newClient, error: clientErr } = await supabase
@@ -257,7 +267,7 @@ export default function PTLabScheduler() {
         if (clientErr || !newClient) { alert("Database Error: " + clientErr?.message); setLoading(false); return; }
 
         const newBookings = Array.from(selected).map(slotKey => ({
-            slot_key: slotKey, client_id: newClient.id, processed: true // Extra is auto-processed
+            slot_key: slotKey, client_id: newClient.id, processed: true 
         }));
         const { data, error } = await supabase.from('bookings').insert(newBookings).select();
 
@@ -269,7 +279,6 @@ export default function PTLabScheduler() {
         setSelected(new Set());
         setActiveExtraActivity(null); 
         
-        // Reset back to a PT client after booking Extra
         const firstReal = clients.find(c => c.name !== 'Michelle appointment' && c.type !== 'extra');
         setActiveClientId(firstReal?.id || null);
         
@@ -277,7 +286,6 @@ export default function PTLabScheduler() {
         return;
     }
 
-    // 2. Handle Regular PT/Ita/Michelle Confirmation
     if (!activeClientId) return;
     const activeName = activeClientObj?.name || "Client";
     const isIta = activeClientObj?.type === 'ita_job';
@@ -306,7 +314,6 @@ export default function PTLabScheduler() {
     setBookings(prev => prev.filter(b => !idsToRemove.has(b.id)));
     await supabase.from('bookings').delete().in('id', Array.from(idsToRemove));
 
-    // If it was a one-off "Extra" activity, delete the actual client record too to keep DB clean
     if (clientType === 'extra' && clientId) {
         await supabase.from('clients').delete().eq('id', clientId);
     }
@@ -342,72 +349,38 @@ export default function PTLabScheduler() {
     await supabase.from('clients').update({ sessions_remaining: exactAmount }).eq('id', clientId);
   }
 
-  async function confirm() {
-    // 1. SAFETY CHECK: Prevent double-bookings (unless it is Michelle)
-    const isMichelle = activeClientId === michelleClient?.id;
-    
-    if (!isMichelle) {
-        const hasConflict = Array.from(selected).some(slotKey => 
-            // Check if there is already a booking here that IS NOT Michelle
-            bookings.some(b => b.slotKey === slotKey && b.clientId !== michelleClient?.id)
-        );
-        
-        if (hasConflict) {
-            alert("This spot is already taken! Only Michelle appointments can be layered over existing bookings.");
-            return; // Stops the booking process
-        }
+  async function finalizeSelectedDays() {
+    if (selectedDaysToFinalize.size === 0) return;
+
+    const sessionsToFinalize = bookings.filter(b => {
+        if (b.processed) return false; 
+        if (b.clientId === michelleClient?.id) return false;
+        const bDate = b.slotKey.split('|')[0];
+        return selectedDaysToFinalize.has(bDate);
+    });
+
+    if (sessionsToFinalize.length === 0) {
+        alert("There are no un-processed internal sessions on the selected day(s).");
+        setSelectedDaysToFinalize(new Set()); return;
     }
 
-    // 2. Handle "Extra" Mode Confirmation
-    if (activeExtraActivity) {
-        setLoading(true);
-        const { data: newClient, error: clientErr } = await supabase
-            .from('clients')
-            .insert([{ name: activeExtraActivity, type: "extra", sessions_remaining: 0, historical_attended: 0 }])
-            .select().single();
+    const itaClientIds = new Set(
+        sessionsToFinalize.filter(b => clients.find(c => c.id === b.clientId)?.type === 'ita_job').map(b => b.clientId)
+    );
 
-        if (clientErr || !newClient) { alert("Database Error: " + clientErr?.message); setLoading(false); return; }
-
-        const newBookings = Array.from(selected).map(slotKey => ({
-            slot_key: slotKey, client_id: newClient.id, processed: true // Extra is auto-processed
-        }));
-        const { data, error } = await supabase.from('bookings').insert(newBookings).select();
-
-        for (const slotKey of Array.from(selected)) {
-            fetch('/api/sync', { method: 'POST', body: JSON.stringify({ slotKey, clientId: newClient.id, clientName: `Extra: ${activeExtraActivity}` }) }).catch(e => console.error(e));
-        }
-
-        setBookings(prev => [...prev, ...data!.map(b => ({ id: b.id, slotKey: b.slot_key, clientId: b.client_id, processed: b.processed }))]);
-        setSelected(new Set());
-        setActiveExtraActivity(null); 
+    if (itaClientIds.size > 0) {
+        const uniqueItaClients = Array.from(itaClientIds).map(id => clients.find(c => c.id === id)!);
+        const initialInputs: Record<string, string> = {};
+        uniqueItaClients.forEach(c => initialInputs[c.id] = ""); 
         
-        // Reset back to a PT client after booking Extra
-        const firstReal = clients.find(c => c.name !== 'Michelle appointment' && c.type !== 'extra');
-        setActiveClientId(firstReal?.id || null);
-        
-        await loadData();
-        return;
+        setItaFinalizePrompt({
+            isOpen: true, clients: uniqueItaClients, hoursInput: initialInputs, sessionsToProcess: sessionsToFinalize
+        });
+        return; 
     }
 
-    // 3. Handle Regular PT/Ita/Michelle Confirmation
-    if (!activeClientId) return;
-    const activeName = activeClientObj?.name || "Client";
-    const isIta = activeClientObj?.type === 'ita_job';
-
-    const newBookings = Array.from(selected).map(slotKey => ({ slot_key: slotKey, client_id: activeClientId!, processed: false }));
-    const { data, error } = await supabase.from('bookings').insert(newBookings).select();
-    if (error || !data) { alert("Database Error: " + error.message); return; }
-
-    const createdBookings: Booking[] = data.map(b => ({ id: b.id, slotKey: b.slot_key, clientId: b.client_id, processed: b.processed }));
-    setBookings(prev => [...prev, ...createdBookings]);
-    setSelected(new Set());
-
-    for (const slotKey of Array.from(selected)) {
-      if (activeName !== 'Michelle appointment') {
-        const googleName = isIta ? `Ita Job: ${activeName}` : activeName;
-        fetch('/api/sync', { method: 'POST', body: JSON.stringify({ slotKey, clientId: activeClientId, clientName: googleName }) }).catch(e => console.error(e));
-      }
-    }
+    if (!window.confirm(`Deduct balances for ${sessionsToFinalize.length} session(s) across the selected day(s)?`)) return;
+    executeFinalization(sessionsToFinalize, {});
   }
 
   async function executeFinalization(sessionsToFinalize: Booking[], itaHoursOverride: Record<string, number>) {
@@ -478,7 +451,6 @@ export default function PTLabScheduler() {
 
   if (loading && bookings.length === 0) return <div className="h-screen flex items-center justify-center font-bold text-[#16202e]">Loading PTLab...</div>;
 
-  // We explicitly DO NOT filter for extraClients here because we want them hidden from the menu
   const ptClients = clients.filter(c => c.name !== 'Michelle appointment' && c.type !== 'ita_job' && c.type !== 'extra');
   const itaClients = clients.filter(c => c.type === 'ita_job');
 
@@ -494,7 +466,13 @@ export default function PTLabScheduler() {
                     <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowExtraPanel(false);}} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100">+ The Ita Job</button>
                     <Link href="/ita-report" className="w-full"><button className="w-full px-2 py-1 rounded-full text-[10px] font-bold border transition-colors bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Ita Reports</button></Link>
                     <div className="h-[1px] w-full bg-gray-200 my-0.5"></div>
-                    <button onClick={() => {setShowExtraPanel(!showExtraPanel); setShowIntroPanel(false); setShowItaPanel(false);}} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
+                    <button onClick={() => {
+                        if (selected.size === 0) {
+                            alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it.");
+                        } else {
+                            setShowExtraPanel(true); setShowIntroPanel(false); setShowItaPanel(false);
+                        }
+                    }} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
                     <div className="h-[1px] w-full bg-gray-200 my-0.5"></div>
                     <button onClick={activateMichelle} className="w-full px-2 py-1 rounded-full text-[10px] font-bold border transition-colors" style={{ backgroundColor: isMichelleActive ? "#ef4444" : "transparent", color: isMichelleActive ? "white" : "#ef4444", borderColor: "#ef4444" }}>Michelle</button>
                 </div>
@@ -551,7 +529,6 @@ export default function PTLabScheduler() {
                     </div>
                 )}
 
-                {/* Extra Mode Indicator */}
                 {activeExtraActivity && (
                     <div className="flex items-center gap-3 border-t border-gray-100 pt-2">
                         <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-12 shrink-0 text-right">Extra</span>
@@ -606,7 +583,7 @@ export default function PTLabScheduler() {
       {showExtraPanel && (
         <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
           <div className="bg-yellow-50 p-3 rounded-xl shadow-lg border border-yellow-200 flex gap-2 max-w-md items-center mt-2">
-            <span className="text-xs font-bold text-yellow-700">NEW EXTRA ACTIVITY:</span>
+            <span className="text-xs font-bold text-yellow-700">BOOKING EXTRA ({selected.size} slots):</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-yellow-100" placeholder="e.g. Doctor, Meeting..." value={extraInput} onChange={e => setExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && startExtraBooking()} />
             <button onClick={startExtraBooking} className="px-4 py-2 text-white text-sm font-bold rounded-lg bg-yellow-500 hover:bg-yellow-600">Save</button>
           </div>
@@ -673,10 +650,9 @@ export default function PTLabScheduler() {
 
                             if (isSelected) {
                                 ownerType = "selected";
-                                // Highlight selected slots based on active mode
-                                if (activeExtraActivity) { bg = "#fde047"; } // Yellow for Extra
-                                else if (isActiveItaJob) { bg = "#86efac"; } // Green for Ita
-                                else { bg = PTLAB.orange; } // Orange for PT & Michelle selection
+                                if (activeExtraActivity) { bg = "#fde047"; }
+                                else if (isActiveItaJob) { bg = "#86efac"; }
+                                else { bg = PTLAB.orange; }
                             } else if (regularBooking) {
                                 ownerType = "client";
                                 ownerId = regularBooking.clientId;
@@ -694,7 +670,6 @@ export default function PTLabScheduler() {
                                     color = "#a16207";
                                     blockBorder = "2px solid #eab308";
                                 } else {
-                                    // Classic solid blue with white text
                                     bg = PTLAB.mainBlue; 
                                     color = "white"; 
                                     blockBorder = `1px solid ${PTLAB.mainBlue}`; 
@@ -738,7 +713,6 @@ export default function PTLabScheduler() {
                         return (
                             <div key={d.toISOString()} className="flex-1 border-l border-gray-50 relative" style={{ height: slots.length * SLOT_HEIGHT }}>
                                 
-                                {/* Base Clickable Grid Lines - EVERYONE CAN CLICK EMPTY SLOTS NOW */}
                                 {slots.map((t, i) => {
                                     const key = `${dayDateStr}|${t}`;
                                     return (
