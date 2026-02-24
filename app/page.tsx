@@ -456,30 +456,30 @@ export default function PTLabScheduler() {
 
   return (
     <main className="h-screen w-full flex flex-col font-sans overflow-hidden" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
-      <header className="px-4 py-3 border-b border-gray-200 bg-white shadow-sm z-10 flex items-center justify-between shrink-0">
-         <div className="flex items-start gap-4 flex-1 min-w-0 py-1">
-            <div className="flex items-center gap-2 shrink-0">
-                <div className="flex flex-col gap-1.5 w-32">
-                    <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
-                    <Link href="/report" className="w-full"><button className="w-full px-2 py-1 rounded-full text-[10px] font-bold border transition-colors bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">PT Reports</button></Link>
-                    <div className="h-[1px] w-full bg-gray-200 my-0.5"></div>
-                    <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowExtraPanel(false);}} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100">+ The Ita Job</button>
-                    <Link href="/ita-report" className="w-full"><button className="w-full px-2 py-1 rounded-full text-[10px] font-bold border transition-colors bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Ita Reports</button></Link>
-                    <div className="h-[1px] w-full bg-gray-200 my-0.5"></div>
+      <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between shrink-0 gap-4 overflow-y-auto max-h-[40vh] lg:max-h-none">
+         <div className="flex flex-col md:flex-row items-start gap-4 flex-1 w-full min-w-0">
+            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+                <div className="flex flex-row md:flex-col gap-2 w-full md:w-32 min-w-max">
+                    <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
+                    <Link href="/report" className="shrink-0"><button className="w-full px-4 md:px-2 py-1.5 md:py-1 rounded-full text-[11px] md:text-[10px] font-bold border transition-colors bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200 whitespace-nowrap">PT Reports</button></Link>
+                    <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
+                    <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100 whitespace-nowrap">+ The Ita Job</button>
+                    <Link href="/ita-report" className="shrink-0"><button className="w-full px-4 md:px-2 py-1.5 md:py-1 rounded-full text-[11px] md:text-[10px] font-bold border transition-colors bg-green-100 text-green-800 border-green-300 hover:bg-green-200 whitespace-nowrap">Ita Reports</button></Link>
+                    <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
                     <button onClick={() => {
                         if (selected.size === 0) {
                             alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it.");
                         } else {
                             setShowExtraPanel(true); setShowIntroPanel(false); setShowItaPanel(false);
                         }
-                    }} className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
-                    <div className="h-[1px] w-full bg-gray-200 my-0.5"></div>
-                    <button onClick={activateMichelle} className="w-full px-2 py-1 rounded-full text-[10px] font-bold border transition-colors" style={{ backgroundColor: isMichelleActive ? "#ef4444" : "transparent", color: isMichelleActive ? "white" : "#ef4444", borderColor: "#ef4444" }}>Michelle</button>
+                    }} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100 whitespace-nowrap">+ Extra</button>
+                    <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
+                    <button onClick={activateMichelle} className="shrink-0 px-4 md:px-2 py-1.5 md:py-1 rounded-full text-[11px] md:text-[10px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: isMichelleActive ? "#ef4444" : "transparent", color: isMichelleActive ? "white" : "#ef4444", borderColor: "#ef4444" }}>Michelle</button>
                 </div>
-                <div className="w-[1px] self-stretch bg-gray-300 mx-2 shrink-0"></div>
+                <div className="hidden md:block w-[1px] self-stretch bg-gray-300 mx-2 shrink-0"></div>
             </div>
             
-            <div className="flex flex-col flex-1 gap-3 overflow-y-auto pr-2 justify-center">
+            <div className="flex flex-col flex-1 gap-3 overflow-y-auto pr-2 w-full">
                 <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-12 shrink-0 text-right">PTLab</span>
                     <div className="flex flex-wrap items-center gap-2">
@@ -493,7 +493,7 @@ export default function PTLabScheduler() {
                                     {c.name}
                                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>$</button>
+                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
                                 {showPaymentMenu === c.id && (
                                     <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-30 min-w-[160px]">
                                         <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Add Sessions</div>
@@ -541,7 +541,7 @@ export default function PTLabScheduler() {
             </div>
          </div>
 
-         <div className="flex items-center gap-4 shrink-0 pl-4 border-l border-gray-200 ml-2">
+         <div className="flex items-center justify-between lg:justify-end gap-4 shrink-0 lg:pl-4 lg:border-l border-gray-200 lg:ml-2 pt-3 lg:pt-0 border-t lg:border-t-0 w-full lg:w-auto mt-2 lg:mt-0">
              {!hasCurrentWeekBookings && !loading && (
                  <button 
                      onClick={duplicatePreviousWeek}
@@ -556,7 +556,7 @@ export default function PTLabScheduler() {
                  <span className="text-sm font-bold w-24 text-center">{weekDates[0].getDate()} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}</span>
                  <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-lg font-bold">›</button>
              </div>
-             <div className="w-10 h-10 relative rounded-full overflow-hidden border border-gray-200"><Image src="/logo.jpg" alt="PTLab" fill className="object-cover" /></div>
+             <div className="hidden md:block w-10 h-10 relative rounded-full overflow-hidden border border-gray-200"><Image src="/logo.jpg" alt="PTLab" fill className="object-cover" /></div>
          </div>
       </header>
 
@@ -590,209 +590,209 @@ export default function PTLabScheduler() {
         </div>
       )}
 
-      <section className="flex-1 p-4 min-h-0 relative">
-        <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-          
-          <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-20">
-            <div className="p-3"></div> 
-            {DAYS.map((d, i) => {
-              const dateStr = isoDate(weekDates[i]);
-              const isDaySelected = selectedDaysToFinalize.has(dateStr);
-              return (
-                <div key={d} onClick={() => toggleDaySelection(dateStr)} className={`p-2 text-center text-sm font-bold tracking-wide border-l border-gray-50 cursor-pointer transition-colors ${isDaySelected ? 'bg-green-100 text-green-800' : 'bg-white hover:bg-gray-50'}`} style={{ color: isDaySelected ? '#166534' : PTLAB.navy }}>
-                  {d}
-                  <div className={`text-[10px] font-normal ${isDaySelected ? 'opacity-90' : 'opacity-50'}`}>{dateStr.split('-').slice(1).join('/')}</div>
-                  {isDaySelected && <div className="text-[9px] mt-0.5 font-bold uppercase tracking-wider text-green-600">Selected</div>}
-                </div>
-              );
-            })}
-          </div>
+      <section className="flex-1 p-2 md:p-4 min-h-0 relative">
+        <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto flex flex-col">
+          <div className="min-w-[800px] flex flex-col h-full">
+            <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-20 shrink-0">
+                <div className="p-3"></div> 
+                {DAYS.map((d, i) => {
+                const dateStr = isoDate(weekDates[i]);
+                const isDaySelected = selectedDaysToFinalize.has(dateStr);
+                return (
+                    <div key={d} onClick={() => toggleDaySelection(dateStr)} className={`p-2 text-center text-sm font-bold tracking-wide border-l border-gray-50 cursor-pointer transition-colors ${isDaySelected ? 'bg-green-100 text-green-800' : 'bg-white hover:bg-gray-50'}`} style={{ color: isDaySelected ? '#166534' : PTLAB.navy }}>
+                    {d}
+                    <div className={`text-[10px] font-normal ${isDaySelected ? 'opacity-90' : 'opacity-50'}`}>{dateStr.split('-').slice(1).join('/')}</div>
+                    {isDaySelected && <div className="text-[9px] mt-0.5 font-bold uppercase tracking-wider text-green-600">Selected</div>}
+                    </div>
+                );
+                })}
+            </div>
 
-          <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
-            <div className="flex min-w-full" style={{ height: slots.length * SLOT_HEIGHT }}>
-                
-                <div className="w-[60px] shrink-0 bg-white border-r border-gray-100 relative z-10">
-                    {slots.map((t, i) => (
-                        <div key={t} className="absolute w-full text-xs font-medium text-right pr-3 opacity-40 flex items-center justify-end" style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT, color: PTLAB.navy }}>
-                            {t}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="flex-1 flex bg-white relative">
-                    {weekDates.map(d => {
-                        const dayDateStr = isoDate(d);
-                        
-                        const dayBlocks: any[] = [];
-                        const michelleBlocks: any[] = [];
-                        let currentBlock: any = null;
-                        let currentMichelle: any = null;
-
-                        for (let i = 0; i < slots.length; i++) {
-                            const t = slots[i];
-                            const key = `${dayDateStr}|${t}`;
-                            
-                            const slotBookings = bookings.filter(b => b.slotKey === key);
-                            const michelleBooking = slotBookings.find(b => b.clientId === michelleClient?.id);
-                            const regularBooking = slotBookings.find(b => b.clientId !== michelleClient?.id);
-                            const googleTitle = googleBusy.get(key); 
-                            const isGoogleBlocked = !!googleTitle && !regularBooking; 
-                            const isSelected = selected.has(key);
-
-                            let ownerType = "empty";
-                            let ownerId: string | null = null;
-                            let title = "";
-                            let bg = "transparent";
-                            let color = "white";
-                            let blockBorder = "none";
-                            let clientType = "";
-                            let isProcessed = false;
-
-                            if (isSelected) {
-                                ownerType = "selected";
-                                if (activeExtraActivity) { bg = "#fde047"; }
-                                else if (isActiveItaJob) { bg = "#86efac"; }
-                                else { bg = PTLAB.orange; }
-                            } else if (regularBooking) {
-                                ownerType = "client";
-                                ownerId = regularBooking.clientId;
-                                const cObj = clients.find(c => c.id === ownerId);
-                                title = cObj?.name || "Client";
-                                clientType = cObj?.type || "";
-                                isProcessed = regularBooking.processed;
-                                
-                                if (clientType === 'ita_job') {
-                                    bg = "#dcfce7";
-                                    color = "#166534";
-                                    blockBorder = "2px solid rgba(34, 197, 94, 0.6)";
-                                } else if (clientType === 'extra') {
-                                    bg = "#fef08a";
-                                    color = "#a16207";
-                                    blockBorder = "2px solid #eab308";
-                                } else {
-                                    bg = PTLAB.mainBlue; 
-                                    color = "white"; 
-                                    blockBorder = `1px solid ${PTLAB.mainBlue}`; 
-                                }
-                            } else if (isGoogleBlocked) {
-                                ownerType = "google";
-                                title = googleTitle;
-                                bg = "#e5e7eb";
-                                color = "#4b5563";
-                                blockBorder = "1px solid white";
-                            }
-
-                            if (ownerType !== "empty") {
-                                if (currentBlock && currentBlock.ownerType === ownerType && currentBlock.ownerId === ownerId && currentBlock.title === title) {
-                                    currentBlock.span += 1;
-                                    currentBlock.keys.push(key);
-                                    if (regularBooking) currentBlock.bookings.push(regularBooking);
-                                } else {
-                                    if (currentBlock) dayBlocks.push(currentBlock);
-                                    currentBlock = { startIdx: i, span: 1, keys: [key], bookings: regularBooking ? [regularBooking] : [], ownerType, ownerId, title, bg, color, blockBorder, clientType, isProcessed };
-                                }
-                            } else {
-                                if (currentBlock) { dayBlocks.push(currentBlock); currentBlock = null; }
-                            }
-
-                            if (michelleBooking) {
-                                if (currentMichelle) {
-                                    currentMichelle.span += 1;
-                                    currentMichelle.keys.push(key);
-                                    currentMichelle.bookings.push(michelleBooking);
-                                } else {
-                                    currentMichelle = { startIdx: i, span: 1, keys: [key], bookings: [michelleBooking] };
-                                }
-                            } else {
-                                if (currentMichelle) { michelleBlocks.push(currentMichelle); currentMichelle = null; }
-                            }
-                        }
-                        if (currentBlock) dayBlocks.push(currentBlock);
-                        if (currentMichelle) michelleBlocks.push(currentMichelle);
-
-                        return (
-                            <div key={d.toISOString()} className="flex-1 border-l border-gray-50 relative" style={{ height: slots.length * SLOT_HEIGHT }}>
-                                
-                                {slots.map((t, i) => {
-                                    const key = `${dayDateStr}|${t}`;
-                                    return (
-                                        <div 
-                                            key={t}
-                                            className="absolute w-full border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
-                                            style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
-                                            onClick={() => toggleSelectKeys([key])}
-                                        />
-                                    );
-                                })}
-
-                                {dayBlocks.map(block => (
-                                    <div
-                                        key={block.keys[0]}
-                                        className="absolute w-full left-0 overflow-hidden flex items-center justify-center m-[0px] rounded-[3px] shadow-sm transition-all"
-                                        style={{
-                                            top: block.startIdx * SLOT_HEIGHT,
-                                            height: block.span * SLOT_HEIGHT,
-                                            backgroundColor: block.bg,
-                                            border: block.blockBorder,
-                                            zIndex: 10,
-                                            cursor: block.ownerType === "selected" ? "pointer" : isMichelleActive ? "pointer" : "default"
-                                        }}
-                                        onClick={() => {
-                                            if (block.ownerType === "selected") toggleSelectKeys(block.keys);
-                                            else if (isMichelleActive && block.ownerType !== "selected") toggleSelectKeys(block.keys);
-                                        }}
-                                        onDoubleClick={() => {
-                                            if (block.ownerType === "client") cancelBookingSpan(block.keys, block.bookings, block.title, block.clientType, block.isProcessed, block.ownerId);
-                                            else if (block.ownerType === "google") cancelExternalBookingSpan(block.keys, block.title);
-                                        }}
-                                    >
-                                        <span 
-                                            className="text-[11px] font-bold px-2 text-center drop-shadow-sm truncate block w-full" 
-                                            style={{ color: block.color }}
-                                            title={block.title}
-                                        >
-                                            {block.title}
-                                        </span>
-                                    </div>
-                                ))}
-
-                                {michelleBlocks.map(mBlock => (
-                                    <div
-                                        key={mBlock.keys[0]}
-                                        className={`absolute w-full left-0 ${isMichelleActive ? 'cursor-pointer pointer-events-auto' : 'pointer-events-none'}`}
-                                        style={{
-                                            top: mBlock.startIdx * SLOT_HEIGHT,
-                                            height: mBlock.span * SLOT_HEIGHT,
-                                            backgroundColor: "rgba(239, 68, 68, 0.25)",
-                                            border: "2px solid rgba(239, 68, 68, 0.6)",
-                                            borderRadius: "3px",
-                                            zIndex: 20
-                                        }}
-                                        onClick={() => { if (isMichelleActive) toggleSelectKeys(mBlock.keys); }}
-                                        onDoubleClick={() => { if (isMichelleActive) cancelBookingSpan(mBlock.keys, mBlock.bookings, 'Michelle appointment', undefined, false, null); }}
-                                    />
-                                ))}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
+                <div className="flex min-w-full" style={{ height: slots.length * SLOT_HEIGHT }}>
+                    <div className="w-[60px] shrink-0 bg-white border-r border-gray-100 relative z-10">
+                        {slots.map((t, i) => (
+                            <div key={t} className="absolute w-full text-[11px] font-medium text-right pr-2 opacity-40 flex items-center justify-end" style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT, color: PTLAB.navy }}>
+                                {t}
                             </div>
-                        )
-                    })}
+                        ))}
+                    </div>
+
+                    <div className="flex-1 flex bg-white relative">
+                        {weekDates.map(d => {
+                            const dayDateStr = isoDate(d);
+                            
+                            const dayBlocks: any[] = [];
+                            const michelleBlocks: any[] = [];
+                            let currentBlock: any = null;
+                            let currentMichelle: any = null;
+
+                            for (let i = 0; i < slots.length; i++) {
+                                const t = slots[i];
+                                const key = `${dayDateStr}|${t}`;
+                                
+                                const slotBookings = bookings.filter(b => b.slotKey === key);
+                                const michelleBooking = slotBookings.find(b => b.clientId === michelleClient?.id);
+                                const regularBooking = slotBookings.find(b => b.clientId !== michelleClient?.id);
+                                const googleTitle = googleBusy.get(key); 
+                                const isGoogleBlocked = !!googleTitle && !regularBooking; 
+                                const isSelected = selected.has(key);
+
+                                let ownerType = "empty";
+                                let ownerId: string | null = null;
+                                let title = "";
+                                let bg = "transparent";
+                                let color = "white";
+                                let blockBorder = "none";
+                                let clientType = "";
+                                let isProcessed = false;
+
+                                if (isSelected) {
+                                    ownerType = "selected";
+                                    if (activeExtraActivity) { bg = "#fde047"; }
+                                    else if (isActiveItaJob) { bg = "#86efac"; }
+                                    else { bg = PTLAB.orange; }
+                                } else if (regularBooking) {
+                                    ownerType = "client";
+                                    ownerId = regularBooking.clientId;
+                                    const cObj = clients.find(c => c.id === ownerId);
+                                    title = cObj?.name || "Client";
+                                    clientType = cObj?.type || "";
+                                    isProcessed = regularBooking.processed;
+                                    
+                                    if (clientType === 'ita_job') {
+                                        bg = "#dcfce7";
+                                        color = "#166534";
+                                        blockBorder = "2px solid rgba(34, 197, 94, 0.6)";
+                                    } else if (clientType === 'extra') {
+                                        bg = "#fef08a";
+                                        color = "#a16207";
+                                        blockBorder = "2px solid #eab308";
+                                    } else {
+                                        bg = PTLAB.mainBlue; 
+                                        color = "white"; 
+                                        blockBorder = `1px solid ${PTLAB.mainBlue}`; 
+                                    }
+                                } else if (isGoogleBlocked) {
+                                    ownerType = "google";
+                                    title = googleTitle;
+                                    bg = "#e5e7eb";
+                                    color = "#4b5563";
+                                    blockBorder = "1px solid white";
+                                }
+
+                                if (ownerType !== "empty") {
+                                    if (currentBlock && currentBlock.ownerType === ownerType && currentBlock.ownerId === ownerId && currentBlock.title === title) {
+                                        currentBlock.span += 1;
+                                        currentBlock.keys.push(key);
+                                        if (regularBooking) currentBlock.bookings.push(regularBooking);
+                                    } else {
+                                        if (currentBlock) dayBlocks.push(currentBlock);
+                                        currentBlock = { startIdx: i, span: 1, keys: [key], bookings: regularBooking ? [regularBooking] : [], ownerType, ownerId, title, bg, color, blockBorder, clientType, isProcessed };
+                                    }
+                                } else {
+                                    if (currentBlock) { dayBlocks.push(currentBlock); currentBlock = null; }
+                                }
+
+                                if (michelleBooking) {
+                                    if (currentMichelle) {
+                                        currentMichelle.span += 1;
+                                        currentMichelle.keys.push(key);
+                                        currentMichelle.bookings.push(michelleBooking);
+                                    } else {
+                                        currentMichelle = { startIdx: i, span: 1, keys: [key], bookings: [michelleBooking] };
+                                    }
+                                } else {
+                                    if (currentMichelle) { michelleBlocks.push(currentMichelle); currentMichelle = null; }
+                                }
+                            }
+                            if (currentBlock) dayBlocks.push(currentBlock);
+                            if (currentMichelle) michelleBlocks.push(currentMichelle);
+
+                            return (
+                                <div key={d.toISOString()} className="flex-1 border-l border-gray-50 relative" style={{ height: slots.length * SLOT_HEIGHT }}>
+                                    
+                                    {slots.map((t, i) => {
+                                        const key = `${dayDateStr}|${t}`;
+                                        return (
+                                            <div 
+                                                key={t}
+                                                className="absolute w-full border-b border-gray-50 hover:bg-gray-50 cursor-pointer"
+                                                style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT }}
+                                                onClick={() => toggleSelectKeys([key])}
+                                            />
+                                        );
+                                    })}
+
+                                    {dayBlocks.map(block => (
+                                        <div
+                                            key={block.keys[0]}
+                                            className="absolute w-full left-0 overflow-hidden flex items-center justify-center m-[0px] rounded-[3px] shadow-sm transition-all"
+                                            style={{
+                                                top: block.startIdx * SLOT_HEIGHT,
+                                                height: block.span * SLOT_HEIGHT,
+                                                backgroundColor: block.bg,
+                                                border: block.blockBorder,
+                                                zIndex: 10,
+                                                cursor: block.ownerType === "selected" ? "pointer" : isMichelleActive ? "pointer" : "default"
+                                            }}
+                                            onClick={() => {
+                                                if (block.ownerType === "selected") toggleSelectKeys(block.keys);
+                                                else if (isMichelleActive && block.ownerType !== "selected") toggleSelectKeys(block.keys);
+                                            }}
+                                            onDoubleClick={() => {
+                                                if (block.ownerType === "client") cancelBookingSpan(block.keys, block.bookings, block.title, block.clientType, block.isProcessed, block.ownerId);
+                                                else if (block.ownerType === "google") cancelExternalBookingSpan(block.keys, block.title);
+                                            }}
+                                        >
+                                            <span 
+                                                className="text-[11px] font-bold px-1 text-center drop-shadow-sm truncate block w-full leading-tight" 
+                                                style={{ color: block.color }}
+                                                title={block.title}
+                                            >
+                                                {block.title}
+                                            </span>
+                                        </div>
+                                    ))}
+
+                                    {michelleBlocks.map(mBlock => (
+                                        <div
+                                            key={mBlock.keys[0]}
+                                            className={`absolute w-full left-0 ${isMichelleActive ? 'cursor-pointer pointer-events-auto' : 'pointer-events-none'}`}
+                                            style={{
+                                                top: mBlock.startIdx * SLOT_HEIGHT,
+                                                height: mBlock.span * SLOT_HEIGHT,
+                                                backgroundColor: "rgba(239, 68, 68, 0.25)",
+                                                border: "2px solid rgba(239, 68, 68, 0.6)",
+                                                borderRadius: "3px",
+                                                zIndex: 20
+                                            }}
+                                            onClick={() => { if (isMichelleActive) toggleSelectKeys(mBlock.keys); }}
+                                            onDoubleClick={() => { if (isMichelleActive) cancelBookingSpan(mBlock.keys, mBlock.bookings, 'Michelle appointment', undefined, false, null); }}
+                                        />
+                                    ))}
+                                </div>
+                            )
+                        })}
+                    </div>
                 </div>
             </div>
           </div>
         </div>
 
         {itaFinalizePrompt?.isOpen && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm">
-                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl m-4 border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
                     <h2 className="text-xl font-black text-green-700 mb-2">The Ita Job: Hours Worked</h2>
                     <p className="text-sm text-gray-600 mb-5 leading-relaxed">How many actual hours did you work for each client today?</p>
                     <div className="space-y-4 mb-6">
                         {itaFinalizePrompt.clients.map(c => (
                             <div key={c.id} className="flex items-center justify-between p-3 bg-green-50 rounded-xl border border-green-100">
-                                <span className="font-bold text-[#16202e]">{c.name}</span>
-                                <div className="flex items-center gap-2">
+                                <span className="font-bold text-[#16202e] truncate pr-2">{c.name}</span>
+                                <div className="flex items-center gap-2 shrink-0">
                                     <input 
                                         type="text" placeholder="e.g. 2.5"
-                                        className="w-20 px-2 py-1.5 text-right font-bold rounded border border-green-200 focus:outline-none focus:border-green-500"
+                                        className="w-16 px-2 py-1.5 text-right font-bold rounded border border-green-200 focus:outline-none focus:border-green-500"
                                         value={itaFinalizePrompt.hoursInput[c.id]}
                                         onChange={(e) => setItaFinalizePrompt(prev => ({...prev!, hoursInput: { ...prev!.hoursInput, [c.id]: e.target.value }}))}
                                     />
@@ -817,15 +817,15 @@ export default function PTLabScheduler() {
                                 executeFinalization(itaFinalizePrompt.sessionsToProcess, processedHours);
                             }} 
                             className="flex-1 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors"
-                        >Confirm & Save</button>
+                        >Confirm</button>
                     </div>
                 </div>
             </div>
         )}
         
         {zeroBalanceClients.length > 0 && (
-            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm">
-                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl m-4 border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm p-4">
+                <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
                     <div className="flex items-center gap-2 mb-2">
                         <span className="text-2xl">⚠️</span><h2 className="text-xl font-black text-red-600">Packages Finished!</h2>
                     </div>
@@ -848,18 +848,18 @@ export default function PTLabScheduler() {
         )}
       </section>
 
-      <footer className="p-4 pt-0 shrink-0 flex gap-4">
+      <footer className="p-3 md:p-4 pt-0 shrink-0 flex gap-4">
         {selected.size > 0 && !showExtraPanel ? (
-            <button onClick={confirm} className={`w-full py-4 rounded-xl text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2`} style={{ backgroundColor: isActiveItaJob ? "#22c55e" : activeExtraActivity ? "#eab308" : PTLAB.mainBlue, color: PTLAB.white }}>
+            <button onClick={confirm} className={`w-full py-3 md:py-4 rounded-xl text-base md:text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2`} style={{ backgroundColor: isActiveItaJob ? "#22c55e" : activeExtraActivity ? "#eab308" : PTLAB.mainBlue, color: PTLAB.white }}>
                 Confirm {selected.size} {isActiveItaJob || activeExtraActivity ? "Blocks" : "Sessions"}
             </button>
         ) : selectedDaysToFinalize.size > 0 ? (
-            <button onClick={finalizeSelectedDays} className="w-full py-4 rounded-xl text-lg font-bold shadow-sm border-2 transition-all flex items-center justify-center gap-2 bg-green-50 text-green-700 border-green-400 hover:bg-green-100">
+            <button onClick={finalizeSelectedDays} className="w-full py-3 md:py-4 rounded-xl text-base md:text-lg font-bold shadow-sm border-2 transition-all flex items-center justify-center gap-2 bg-green-50 text-green-700 border-green-400 hover:bg-green-100">
                 ✅ Finalize {selectedDaysToFinalize.size} Selected Day(s)
             </button>
         ) : (
-            <div className="w-full py-4 rounded-xl text-sm font-bold border-2 flex items-center justify-center text-gray-400 border-gray-200 bg-gray-50">
-                👆 Click a Day Header (e.g. Mon, Tue) to finalize attendance
+            <div className="w-full py-3 md:py-4 rounded-xl text-xs md:text-sm font-bold border-2 flex items-center justify-center text-gray-400 border-gray-200 bg-gray-50 text-center px-2">
+                👆 Click a Day Header (e.g. Mon) to finalize attendance
             </div>
         )}
       </footer>
