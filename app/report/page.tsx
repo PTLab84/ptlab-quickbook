@@ -7,7 +7,7 @@ import { supabase } from "@/lib/supabase";
 
 const PTLAB = { navy: "#16202e", orange: "#f05a28", bg: "#f3f4f6" };
 
-type Client = { id: string; name: string; type?: "intro" | "regular" | "ita_job"; sessions_remaining: number; historical_attended: number };
+type Client = { id: string; name: string; type?: "intro" | "regular" | "ita_job" | "extra"; sessions_remaining: number; historical_attended: number };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
 
 export default function PTReportDashboard() {
