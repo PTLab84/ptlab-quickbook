@@ -93,7 +93,9 @@ export default function ItaReportDashboard() {
 
       const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #16202e;">
-            <h1 style="color: #15803d;">The Italian Job</h1>
+            <h1 style="color: #15803d; margin-bottom: 5px;">The Italian Job</h1>
+            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 20px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
+
             <p>Hi <strong>${displayName}</strong>,</p>
             <p>Thank you for your business! Here is your latest invoice for <strong>$${totalDue.toFixed(2)}</strong>.</p>
             
@@ -131,6 +133,8 @@ export default function ItaReportDashboard() {
                 <p style="margin: 5px 0;"><strong>Account:</strong> 301182182</p>
                 <p style="font-size: 12px; color: #166534; margin-top: 15px;">Please make payment within 7 days. Thank you!</p>
             </div>
+
+            <p style="font-size: 11px; color: #9ca3af; text-align: center; margin-top: 30px;">This email serves as your official tax invoice.</p>
         </div>
       `;
 

@@ -14,7 +14,14 @@ const PTLAB = {
   mainBlue: "#0160C9", 
 };
 
-type Client = { id: string; name: string; type?: "intro" | "regular" | "ita_job" | "extra"; sessions_remaining: number; historical_attended: number };
+type Client = { 
+  id: string; 
+  name: string; 
+  type?: "intro" | "regular" | "ita_job" | "extra"; 
+  sessions_remaining: number; 
+  historical_attended: number;
+  active?: boolean;
+};
 type SlotKey = string;
 type Booking = { id: string; slotKey: SlotKey; clientId: string; processed: boolean };
 
@@ -60,6 +67,11 @@ export default function PTLabScheduler() {
   
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [introName, setIntroName] = useState("");
+  
+  // NEW: Regular Client Panel State
+  const [showRegularPanel, setShowRegularPanel] = useState(false);
+  const [regularName, setRegularName] = useState("");
+
   const [showItaPanel, setShowItaPanel] = useState(false);
   const [itaName, setItaName] = useState("");
   
@@ -102,7 +114,12 @@ export default function PTLabScheduler() {
 
   async function loadData() {
     setLoading(true);
-    const { data: clientData } = await supabase.from('clients').select('*').order('created_at', { ascending: false });
+    // ONLY fetch clients that are active OR the special Michelle appt
+    const { data: clientData } = await supabase.from('clients')
+        .select('*')
+        .or('active.eq.true,active.is.null,name.eq.Michelle appointment')
+        .order('created_at', { ascending: false });
+
     if (clientData) {
       const safeClients = clientData.map(c => ({
           ...c, 
@@ -349,6 +366,17 @@ export default function PTLabScheduler() {
     await supabase.from('clients').update({ sessions_remaining: exactAmount }).eq('id', clientId);
   }
 
+  // --- NEW: ARCHIVE CLIENT ---
+  async function archiveClient(clientId: string, clientName: string) {
+    if (!window.confirm(`Are you sure you want to remove ${clientName} from the active list?\n\n(Their history and invoices will be safely saved in the background).`)) return;
+    
+    setLoading(true);
+    await supabase.from('clients').update({ active: false }).eq('id', clientId);
+    setShowPaymentMenu(null);
+    if (activeClientId === clientId) setActiveClientId(null);
+    await loadData();
+  }
+
   async function finalizeSelectedDays() {
     if (selectedDaysToFinalize.size === 0) return;
 
@@ -429,22 +457,30 @@ export default function PTLabScheduler() {
   async function activateMichelle() {
     let michelle = clients.find(c => c.name === 'Michelle appointment');
     if (!michelle) {
-        const { data } = await supabase.from('clients').insert([{ name: 'Michelle appointment', type: 'regular', sessions_remaining: 0, historical_attended: 0 }]).select().single();
+        const { data } = await supabase.from('clients').insert([{ name: 'Michelle appointment', type: 'regular', sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
         if (data) { setClients(prev => [data, ...prev]); setActiveClientId(data.id); }
     } else { setActiveClientId(michelle.id); }
-    setSelected(new Set()); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false); setShowPaymentMenu(null); setActiveExtraActivity(null);
+    setSelected(new Set()); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false); setShowPaymentMenu(null); setActiveExtraActivity(null);
   }
 
   async function addIntroClient() {
     if (!introName.trim()) return;
-    const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0 }]).select().single();
+    const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0, active: true }]).select().single();
     if (error || !data) return;
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
   }
 
+  // --- NEW: ADD REGULAR CLIENT ---
+  async function addRegularClient() {
+    if (!regularName.trim()) return;
+    const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
+    if (error || !data) return;
+    setClients(prev => [...prev, data]); setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
+  }
+
   async function addItaClient() {
     if (!itaName.trim()) return;
-    const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0 }]).select().single();
+    const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
     if (error || !data) return;
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
   }
@@ -460,17 +496,18 @@ export default function PTLabScheduler() {
          <div className="flex flex-col md:flex-row items-start gap-4 flex-1 w-full min-w-0">
             <div className="flex items-center gap-2 shrink-0 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
                 <div className="flex flex-row md:flex-col gap-2 w-full md:w-32 min-w-max">
-                    <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
+                    <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
+                    <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showRegularPanel ? PTLAB.navy : PTLAB.white, color: showRegularPanel ? PTLAB.white : PTLAB.navy, borderColor: PTLAB.navy }}>+ Regular PT</button>
                     <Link href="/report" className="shrink-0"><button className="w-full px-4 md:px-2 py-1.5 md:py-1 rounded-full text-[11px] md:text-[10px] font-bold border transition-colors bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200 whitespace-nowrap">PT Reports</button></Link>
                     <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
-                    <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100 whitespace-nowrap">+ The Ita Job</button>
+                    <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowRegularPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100 whitespace-nowrap">+ The Ita Job</button>
                     <Link href="/ita-report" className="shrink-0"><button className="w-full px-4 md:px-2 py-1.5 md:py-1 rounded-full text-[11px] md:text-[10px] font-bold border transition-colors bg-green-100 text-green-800 border-green-300 hover:bg-green-200 whitespace-nowrap">Ita Reports</button></Link>
                     <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
                     <button onClick={() => {
                         if (selected.size === 0) {
                             alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it.");
                         } else {
-                            setShowExtraPanel(true); setShowIntroPanel(false); setShowItaPanel(false);
+                            setShowExtraPanel(true); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false);
                         }
                     }} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100 whitespace-nowrap">+ Extra</button>
                     <div className="hidden md:block h-[1px] w-full bg-gray-200 my-0.5"></div>
@@ -496,7 +533,10 @@ export default function PTLabScheduler() {
                                 <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
                                 {showPaymentMenu === c.id && (
                                     <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-30 min-w-[160px]">
-                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Add Sessions</div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 flex justify-between items-center border-b pb-1">
+                                            <span>Add Sessions</span>
+                                            <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 bg-red-50 px-1.5 rounded">✕ Remove</button>
+                                        </div>
                                         <div className="grid grid-cols-4 gap-1 mb-3">{[1,2,3,4,5,6,7,8,9,10,11,12].map(num => <button key={num} onClick={() => logPayment(c.id, num)} className="py-1 bg-gray-50 hover:bg-green-100 text-green-700 font-bold rounded text-xs transition-colors border border-gray-100">+{num}</button>)}</div>
                                         <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Corrections</div>
                                         <div className="grid grid-cols-3 gap-1">
@@ -519,10 +559,13 @@ export default function PTLabScheduler() {
                             {itaClients.map(c => {
                                 const isActive = c.id === activeClientId && !activeExtraActivity;
                                 return (
-                                    <button key={c.id} onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
-                                        style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
-                                        {c.name}
-                                    </button>
+                                    <div key={c.id} className="relative group">
+                                        <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+                                            style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
+                                            {c.name}
+                                        </button>
+                                        <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+                                    </div>
                                 )
                             })}
                         </div>
@@ -563,9 +606,20 @@ export default function PTLabScheduler() {
       {showIntroPanel && (
         <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
           <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex gap-2 max-w-md items-center mt-2">
-            <span className="text-xs font-bold text-gray-400">NEW PT CLIENT:</span>
+            <span className="text-xs font-bold text-gray-400">NEW INTRO PACK:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={introName} onChange={e => setIntroName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addIntroClient()} />
             <button onClick={addIntroClient} className="px-4 py-2 text-white text-sm font-bold rounded-lg" style={{ backgroundColor: PTLAB.mainBlue }}>Add</button>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: REGULAR CLIENT PANEL */}
+      {showRegularPanel && (
+        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+          <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex gap-2 max-w-md items-center mt-2">
+            <span className="text-xs font-bold text-gray-400">NEW REGULAR PT:</span>
+            <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={regularName} onChange={e => setRegularName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRegularClient()} />
+            <button onClick={addRegularClient} className="px-4 py-2 text-white text-sm font-bold rounded-lg" style={{ backgroundColor: PTLAB.navy }}>Add</button>
           </div>
         </div>
       )}
@@ -656,7 +710,7 @@ export default function PTLabScheduler() {
                                     ownerType = "client";
                                     ownerId = regularBooking.clientId;
                                     const cObj = clients.find(c => c.id === ownerId);
-                                    title = cObj?.name || "Client";
+                                    title = cObj?.name || "Archived Client";
                                     clientType = cObj?.type || "";
                                     isProcessed = regularBooking.processed;
                                     
