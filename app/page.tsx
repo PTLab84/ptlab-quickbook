@@ -487,9 +487,16 @@ export default function PTLabScheduler() {
 
   return (
     <main className="h-screen w-full flex flex-col font-sans overflow-hidden" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
-      <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between shrink-0 gap-4 overflow-y-auto max-h-[40vh] lg:max-h-none">
+      
+      {/* CSS to hide horizontal scrollbars while keeping them functional */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}} />
+
+      <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col lg:flex-row items-start lg:items-center justify-between shrink-0 gap-4">
          <div className="flex flex-col md:flex-row items-start gap-4 flex-1 w-full min-w-0">
-            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
+            <div className="flex items-center gap-2 shrink-0 w-full md:w-auto overflow-x-auto hide-scrollbar pb-1 md:pb-0">
                 <div className="flex flex-row md:flex-col gap-2 w-full md:w-32 min-w-max">
                     <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
                     <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showRegularPanel ? PTLAB.navy : PTLAB.white, color: showRegularPanel ? PTLAB.white : PTLAB.navy, borderColor: PTLAB.navy }}>+ Regular PT</button>
@@ -511,25 +518,24 @@ export default function PTLabScheduler() {
                 <div className="hidden md:block w-[1px] self-stretch bg-gray-300 mx-2 shrink-0"></div>
             </div>
             
-            <div className="flex flex-col flex-1 gap-3 overflow-y-auto pr-2 w-full">
+            <div className="flex flex-col flex-1 gap-2 overflow-hidden pr-2 w-full min-w-0">
                 <div className="flex items-center gap-3">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-12 shrink-0 text-right">PTLab</span>
-                    <div className="flex flex-wrap items-center gap-2">
+                    {/* NEW HORIZONTAL SCROLLING CLIENT LIST */}
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto hide-scrollbar pb-2 pt-2 w-full">
                         {ptClients.map(c => {
                             const isActive = c.id === activeClientId && !activeExtraActivity;
                             const balance = c.sessions_remaining;
                             return (
-                            <div key={c.id} className="relative group mt-1">
-                                {/* RED 'X' ARCHIVE BUTTON ON THE LEFT */}
+                            <div key={c.id} className="relative group shrink-0">
                                 <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
                                 
-                                <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-2"
+                                <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
                                     style={{ backgroundColor: isActive ? PTLAB.mainBlue : "transparent", color: isActive ? PTLAB.white : PTLAB.mainBlue, border: isActive ? "none" : `1px solid ${PTLAB.mainBlue}`, boxShadow: isActive ? `0 2px 5px ${PTLAB.mainBlue}80` : "none" }}>
                                     {c.name}
                                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
                                 </button>
 
-                                {/* GREEN '$' PAYMENT BUTTON ON THE RIGHT */}
                                 <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
                                 
                                 {showPaymentMenu === c.id && (
@@ -551,14 +557,14 @@ export default function PTLabScheduler() {
                 </div>
 
                 {itaClients.length > 0 && (
-                    <div className="flex items-center gap-3 border-t border-gray-100 pt-2">
+                    <div className="flex items-center gap-3 border-t border-gray-100 pt-1">
                         <span className="text-[10px] font-black text-green-600 uppercase tracking-widest w-12 shrink-0 text-right">Ita Job</span>
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-nowrap items-center gap-2 overflow-x-auto hide-scrollbar pb-2 pt-2 w-full">
                             {itaClients.map(c => {
                                 const isActive = c.id === activeClientId && !activeExtraActivity;
                                 return (
-                                    <div key={c.id} className="relative group mt-1">
-                                        <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+                                    <div key={c.id} className="relative group shrink-0">
+                                        <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap"
                                             style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
                                             {c.name}
                                         </button>
@@ -571,18 +577,20 @@ export default function PTLabScheduler() {
                 )}
 
                 {activeExtraActivity && (
-                    <div className="flex items-center gap-3 border-t border-gray-100 pt-2">
+                    <div className="flex items-center gap-3 border-t border-gray-100 pt-1">
                         <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-12 shrink-0 text-right">Extra</span>
-                        <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
-                            style={{ backgroundColor: "#eab308", color: "white", boxShadow: "0 2px 5px rgba(234, 179, 8, 0.4)", border: "none" }}>
-                            {activeExtraActivity} (Click to Cancel)
-                        </button>
+                        <div className="flex flex-nowrap overflow-x-auto hide-scrollbar pb-1 w-full">
+                            <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
+                                style={{ backgroundColor: "#eab308", color: "white", boxShadow: "0 2px 5px rgba(234, 179, 8, 0.4)", border: "none" }}>
+                                {activeExtraActivity} (Click to Cancel)
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
          </div>
 
-         <div className="flex items-center justify-between lg:justify-end gap-4 shrink-0 lg:pl-4 lg:border-l border-gray-200 lg:ml-2 pt-3 lg:pt-0 border-t lg:border-t-0 w-full lg:w-auto mt-2 lg:mt-0">
+         <div className="flex items-center justify-between lg:justify-end gap-4 shrink-0 lg:pl-4 lg:border-l border-gray-200 lg:ml-2 pt-2 lg:pt-0 border-t lg:border-t-0 w-full lg:w-auto mt-1 lg:mt-0 pb-1">
              {!hasCurrentWeekBookings && !loading && (
                  <button 
                      onClick={duplicatePreviousWeek}
@@ -597,12 +605,12 @@ export default function PTLabScheduler() {
                  <span className="text-sm font-bold w-24 text-center">{weekDates[0].getDate()} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}</span>
                  <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-lg font-bold">›</button>
              </div>
-             <div className="hidden md:block w-10 h-10 relative rounded-full overflow-hidden border border-gray-200"><Image src="/logo.jpg" alt="PTLab" fill className="object-cover" /></div>
+             <div className="hidden md:block w-10 h-10 relative rounded-full overflow-hidden border border-gray-200 shrink-0"><Image src="/logo.jpg" alt="PTLab" fill className="object-cover" /></div>
          </div>
       </header>
 
       {showIntroPanel && (
-        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2 z-20 relative">
           <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex gap-2 max-w-md items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW INTRO PACK:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={introName} onChange={e => setIntroName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addIntroClient()} />
@@ -612,7 +620,7 @@ export default function PTLabScheduler() {
       )}
 
       {showRegularPanel && (
-        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2 z-20 relative">
           <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex gap-2 max-w-md items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW REGULAR PT:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={regularName} onChange={e => setRegularName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRegularClient()} />
@@ -622,7 +630,7 @@ export default function PTLabScheduler() {
       )}
 
       {showItaPanel && (
-        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2 z-20 relative">
           <div className="bg-green-50 p-3 rounded-xl shadow-lg border border-green-200 flex gap-2 max-w-md items-center mt-2">
             <span className="text-xs font-bold text-green-700">NEW ITA JOB:</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-green-100" placeholder="Job/Client Name..." value={itaName} onChange={e => setItaName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItaClient()} />
@@ -632,7 +640,7 @@ export default function PTLabScheduler() {
       )}
 
       {showExtraPanel && (
-        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
+        <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2 z-20 relative">
           <div className="bg-yellow-50 p-3 rounded-xl shadow-lg border border-yellow-200 flex gap-2 max-w-md items-center mt-2">
             <span className="text-xs font-bold text-yellow-700">BOOKING EXTRA ({selected.size} slots):</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-yellow-100" placeholder="e.g. Doctor, Meeting..." value={extraInput} onChange={e => setExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && startExtraBooking()} />
@@ -642,10 +650,12 @@ export default function PTLabScheduler() {
       )}
 
       <section className="flex-1 p-2 md:p-4 min-h-0 relative">
-        <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto flex flex-col">
-          <div className="min-w-[800px] flex flex-col h-full">
-            <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-20 shrink-0">
-                <div className="p-3"></div> 
+        <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-x-auto flex flex-col hide-scrollbar relative">
+          <div className="min-w-[800px] flex flex-col h-full relative">
+            
+            {/* STICKY CALENDAR HEADER */}
+            <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-40 sticky top-0 shrink-0 shadow-sm">
+                <div className="p-3 sticky left-0 z-50 bg-white border-r border-gray-100 shadow-[2px_0_4px_rgba(0,0,0,0.03)]"></div> 
                 {DAYS.map((d, i) => {
                 const dateStr = isoDate(weekDates[i]);
                 const isDaySelected = selectedDaysToFinalize.has(dateStr);
@@ -659,9 +669,11 @@ export default function PTLabScheduler() {
                 })}
             </div>
 
-            <div className="flex-1 overflow-y-auto overflow-x-hidden relative">
+            <div className="flex-1 overflow-y-auto overflow-x-visible relative hide-scrollbar">
                 <div className="flex min-w-full" style={{ height: slots.length * SLOT_HEIGHT }}>
-                    <div className="w-[60px] shrink-0 bg-white border-r border-gray-100 relative z-10">
+                    
+                    {/* STICKY TIME COLUMN */}
+                    <div className="w-[60px] shrink-0 bg-white border-r border-gray-100 sticky left-0 z-30 shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                         {slots.map((t, i) => (
                             <div key={t} className="absolute w-full text-[11px] font-medium text-right pr-2 opacity-40 flex items-center justify-end" style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT, color: PTLAB.navy }}>
                                 {t}
@@ -669,7 +681,7 @@ export default function PTLabScheduler() {
                         ))}
                     </div>
 
-                    <div className="flex-1 flex bg-white relative">
+                    <div className="flex-1 flex bg-white relative z-10">
                         {weekDates.map(d => {
                             const dayDateStr = isoDate(d);
                             
@@ -714,15 +726,16 @@ export default function PTLabScheduler() {
                                     if (clientType === 'ita_job') {
                                         bg = "#dcfce7";
                                         color = "#166534";
-                                        blockBorder = "2px solid rgba(34, 197, 94, 0.6)";
+                                        blockBorder = "2px solid #86efac";
                                     } else if (clientType === 'extra') {
                                         bg = "#fef08a";
                                         color = "#a16207";
                                         blockBorder = "2px solid #eab308";
                                     } else {
-                                        bg = PTLAB.mainBlue; 
+                                        // NEW REQUESTED STYLE FOR PTLAB BLOCKS
+                                        bg = "#192230"; 
                                         color = "white"; 
-                                        blockBorder = `1px solid ${PTLAB.mainBlue}`; 
+                                        blockBorder = "2px solid #d4703e"; 
                                     }
                                 } else if (isGoogleBlocked) {
                                     ownerType = "google";
@@ -778,12 +791,16 @@ export default function PTLabScheduler() {
                                     {dayBlocks.map(block => (
                                         <div
                                             key={block.keys[0]}
-                                            className="absolute w-full left-0 overflow-hidden flex items-center justify-center m-[0px] rounded-[3px] shadow-sm transition-all"
+                                            className="absolute overflow-hidden flex items-center justify-center m-[0px] shadow-sm transition-all"
                                             style={{
-                                                top: block.startIdx * SLOT_HEIGHT,
-                                                height: block.span * SLOT_HEIGHT,
+                                                // NEW GAP CALCULATIONS TO PREVENT THE CONNECTED BLOB LOOK
+                                                top: (block.startIdx * SLOT_HEIGHT) + 2,
+                                                height: (block.span * SLOT_HEIGHT) - 4,
+                                                left: "2px",
+                                                width: "calc(100% - 4px)",
                                                 backgroundColor: block.bg,
                                                 border: block.blockBorder,
+                                                borderRadius: "6px",
                                                 zIndex: 10,
                                                 cursor: block.ownerType === "selected" ? "pointer" : isMichelleActive ? "pointer" : "default"
                                             }}
@@ -809,13 +826,15 @@ export default function PTLabScheduler() {
                                     {michelleBlocks.map(mBlock => (
                                         <div
                                             key={mBlock.keys[0]}
-                                            className={`absolute w-full left-0 ${isMichelleActive ? 'cursor-pointer pointer-events-auto' : 'pointer-events-none'}`}
+                                            className={`absolute ${isMichelleActive ? 'cursor-pointer pointer-events-auto' : 'pointer-events-none'}`}
                                             style={{
-                                                top: mBlock.startIdx * SLOT_HEIGHT,
-                                                height: mBlock.span * SLOT_HEIGHT,
+                                                top: (mBlock.startIdx * SLOT_HEIGHT) + 2,
+                                                height: (mBlock.span * SLOT_HEIGHT) - 4,
+                                                left: "2px",
+                                                width: "calc(100% - 4px)",
                                                 backgroundColor: "rgba(239, 68, 68, 0.25)",
-                                                border: "2px solid rgba(239, 68, 68, 0.6)",
-                                                borderRadius: "3px",
+                                                border: "2px dashed rgba(239, 68, 68, 0.8)",
+                                                borderRadius: "6px",
                                                 zIndex: 20
                                             }}
                                             onClick={() => { if (isMichelleActive) toggleSelectKeys(mBlock.keys); }}
@@ -881,7 +900,7 @@ export default function PTLabScheduler() {
                         <span className="text-2xl">⚠️</span><h2 className="text-xl font-black text-red-600">Packages Finished!</h2>
                     </div>
                     <p className="text-sm text-gray-600 mb-5 font-medium leading-relaxed">These clients hit 0 sessions. Click below to instantly open iMessage.</p>
-                    <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2">
+                    <div className="space-y-3 mb-6 max-h-[40vh] overflow-y-auto pr-2 hide-scrollbar">
                         {zeroBalanceClients.map(c => {
                             const message = `Hi ${c.name}, just letting you know that next session we'll start a new Training Package. Thank you!`;
                             const smsLink = `sms:?body=${encodeURIComponent(message)}`;
