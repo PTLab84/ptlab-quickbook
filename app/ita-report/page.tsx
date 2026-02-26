@@ -111,11 +111,17 @@ export default function ItaReportDashboard() {
     <main className="min-h-screen p-4 md:p-8 font-sans bg-green-50 text-[#166534]">
       
       {/* CSS for perfect PDF printing */}
+{/* CSS for perfect PDF printing */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
             body * { visibility: hidden; }
             #printable-invoice, #printable-invoice * { visibility: visible; }
-            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px; box-shadow: none; }
+            
+            /* iOS Safari Pagination Fixes */
+            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            .fixed { position: absolute !important; }
+            .overflow-y-auto { overflow: visible !important; }
+            
             .no-print { display: none !important; }
         }
       `}} />
