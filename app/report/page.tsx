@@ -102,7 +102,6 @@ export default function PTReportDashboard() {
     <main className="min-h-screen p-4 md:p-8 font-sans" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
       
       {/* CSS for perfect PDF printing */}
-{/* CSS for perfect PDF printing */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
             body * { visibility: hidden; }
@@ -199,13 +198,13 @@ export default function PTReportDashboard() {
         </div>
       </div>
 
-      {/* --- INVOICE MODAL (STYLED EXACTLY LIKE YOUR SCREENSHOT) --- */}
+      {/* --- INVOICE MODAL --- */}
       {invoiceClient && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm no-print">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm">
             <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
                 
-                {/* INVOICE CONTROLS (Left side on desktop, top on mobile) */}
-                <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6">
+                {/* INVOICE CONTROLS - Added the no-print tag right here! */}
+                <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print">
                     <div>
                         <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Unit Price ($)</label>
@@ -237,7 +236,6 @@ export default function PTReportDashboard() {
                         
                         {/* HEADER */}
                         <div className="flex justify-between items-start mb-6">
-                            {/* NOTE: You must have a file called "logo.jpg" inside your public folder for this to show! */}
                             <div className="w-24 h-24 relative overflow-hidden rounded-full"><Image src="/logo.jpg" alt="PTLab Logo" fill className="object-cover" /></div>
                             <h1 className="text-4xl font-black mt-4 tracking-tight">Pro Training Lab</h1>
                         </div>
@@ -258,6 +256,7 @@ export default function PTReportDashboard() {
                             <div>{todayStr}</div>
 
                             <div className="font-bold">Description</div>
+                            {/* IT KNOWS WHO IT IS RIGHT HERE! */}
                             <div>{invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</div>
 
                             <div className="font-bold">Invoice Terms</div>
@@ -288,6 +287,7 @@ export default function PTReportDashboard() {
                                     
                                     return (
                                         <tr key={booking.id}>
+                                            {/* IT KNOWS WHO IT IS RIGHT HERE TOO! */}
                                             <td className="py-1 text-center">{invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
                                             <td className="py-1 text-center">{formattedDate}</td>
                                             <td className="py-1 text-center">1</td>

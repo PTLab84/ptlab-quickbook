@@ -111,7 +111,6 @@ export default function ItaReportDashboard() {
     <main className="min-h-screen p-4 md:p-8 font-sans bg-green-50 text-[#166534]">
       
       {/* CSS for perfect PDF printing */}
-{/* CSS for perfect PDF printing */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
             body * { visibility: hidden; }
@@ -220,11 +219,11 @@ export default function ItaReportDashboard() {
 
         {/* --- INVOICE MODAL --- */}
         {invoiceClient && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm no-print">
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm">
                 <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
                     
-                    {/* INVOICE CONTROLS */}
-                    <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6">
+                    {/* INVOICE CONTROLS - Added the no-print tag right here! */}
+                    <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print">
                         <div>
                             <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Hourly Rate ($)</label>
@@ -292,17 +291,28 @@ export default function ItaReportDashboard() {
                                     <tr className="font-bold">
                                         <th className="pb-3 text-center">Description</th>
                                         <th className="pb-3 text-center">Date(s)</th>
-                                        <th className="pb-3 text-center">Quantity (Hrs)</th>
+                                        <th className="pb-3 text-center">Quantity</th>
                                         <th className="pb-3 text-center">Unit Price</th>
                                         <th className="pb-3 text-right">Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Primary Labour Row */}
-                                    {unpaidHours > 0 && (
-                                        <tr>
+                                    {/* LIST EVERY DATE INDIVIDUALLY */}
+                                    {invoiceDates.map((date, i) => (
+                                        <tr key={i}>
                                             <td className="py-2 text-center">Landscaping Labour</td>
-                                            <td className="py-2 text-center text-xs text-gray-500 max-w-[150px]">{invoiceDates.length > 0 ? invoiceDates.join(', ') : todayStr}</td>
+                                            <td className="py-2 text-center text-gray-700">{date}</td>
+                                            <td className="py-2 text-center text-gray-400">-</td>
+                                            <td className="py-2 text-center text-gray-400">-</td>
+                                            <td className="py-2 text-right text-gray-400">-</td>
+                                        </tr>
+                                    ))}
+
+                                    {/* PRIMARY LABOUR TOTAL ROW */}
+                                    {unpaidHours > 0 && (
+                                        <tr className="font-bold bg-green-50/50">
+                                            <td className="py-2 text-center">Total Labour Hours</td>
+                                            <td className="py-2 text-center"></td>
                                             <td className="py-2 text-center">{unpaidHours}</td>
                                             <td className="py-2 text-center">${unitPrice.toFixed(2)}</td>
                                             <td className="py-2 text-right">${(unpaidHours * unitPrice).toFixed(2)}</td>
