@@ -252,7 +252,13 @@ export default function ItaReportDashboard() {
                         </div>
 
                         <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
-                            <button onClick={() => window.print()} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex justify-center items-center gap-2">
+                            {/* THIS IS THE CORRECT PDF SAVE BUTTON */}
+                            <button onClick={() => {
+                                const originalTitle = document.title;
+                                document.title = `Invoice_${invoiceNumber}_${invoiceClient?.name || 'Client'}`;
+                                window.print();
+                                setTimeout(() => { document.title = originalTitle; }, 500);
+                            }} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex justify-center items-center gap-2">
                                 <span>📄</span> Save PDF / Share
                             </button>
                             <button onClick={() => setInvoiceClient(null)} className="w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
@@ -261,7 +267,7 @@ export default function ItaReportDashboard() {
                         </div>
                     </div>
 
-                    {/* ACTUAL PRINTABLE INVOICE - Removed minHeight */}
+                    {/* ACTUAL PRINTABLE INVOICE */}
                     <div className="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
                         <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-8 md:p-12 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                             
@@ -308,13 +314,22 @@ export default function ItaReportDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Primary Labour Row */}
-                                    {unpaidHours > 0 && (
-                                        <tr>
+                                    {/* LIST EVERY DATE INDIVIDUALLY */}
+                                    {invoiceDates.map((date, i) => (
+                                        <tr key={i}>
                                             <td className="py-2 text-center">Landscaping Labour</td>
-                                            <td className="py-2 text-center text-gray-700 max-w-[200px] leading-relaxed">
-                                                {invoiceDates.length > 0 ? invoiceDates.join(', ') : todayStr}
-                                            </td>
+                                            <td className="py-2 text-center text-gray-700">{date}</td>
+                                            <td className="py-2 text-center text-gray-400">-</td>
+                                            <td className="py-2 text-center text-gray-400">-</td>
+                                            <td className="py-2 text-right text-gray-400">-</td>
+                                        </tr>
+                                    ))}
+
+                                    {/* PRIMARY LABOUR TOTAL ROW */}
+                                    {unpaidHours > 0 && (
+                                        <tr className="font-bold bg-green-50/50">
+                                            <td className="py-2 text-center">Total Labour Hours</td>
+                                            <td className="py-2 text-center"></td>
                                             <td className="py-2 text-center">{unpaidHours}</td>
                                             <td className="py-2 text-center">${unitPrice.toFixed(2)}</td>
                                             <td className="py-2 text-right">${(unpaidHours * unitPrice).toFixed(2)}</td>
