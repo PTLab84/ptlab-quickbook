@@ -68,7 +68,6 @@ export default function PTLabScheduler() {
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [introName, setIntroName] = useState("");
   
-  // NEW: Regular Client Panel State
   const [showRegularPanel, setShowRegularPanel] = useState(false);
   const [regularName, setRegularName] = useState("");
 
@@ -114,7 +113,6 @@ export default function PTLabScheduler() {
 
   async function loadData() {
     setLoading(true);
-    // ONLY fetch clients that are active OR the special Michelle appt
     const { data: clientData } = await supabase.from('clients')
         .select('*')
         .or('active.eq.true,active.is.null,name.eq.Michelle appointment')
@@ -366,10 +364,8 @@ export default function PTLabScheduler() {
     await supabase.from('clients').update({ sessions_remaining: exactAmount }).eq('id', clientId);
   }
 
-  // --- NEW: ARCHIVE CLIENT ---
   async function archiveClient(clientId: string, clientName: string) {
     if (!window.confirm(`Are you sure you want to remove ${clientName} from the active list?\n\n(Their history and invoices will be safely saved in the background).`)) return;
-    
     setLoading(true);
     await supabase.from('clients').update({ active: false }).eq('id', clientId);
     setShowPaymentMenu(null);
@@ -470,7 +466,6 @@ export default function PTLabScheduler() {
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
   }
 
-  // --- NEW: ADD REGULAR CLIENT ---
   async function addRegularClient() {
     if (!regularName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
@@ -525,18 +520,21 @@ export default function PTLabScheduler() {
                             const balance = c.sessions_remaining;
                             return (
                             <div key={c.id} className="relative group mt-1">
+                                {/* RED 'X' ARCHIVE BUTTON ON THE LEFT */}
+                                <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+                                
                                 <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0 flex items-center gap-2"
                                     style={{ backgroundColor: isActive ? PTLAB.mainBlue : "transparent", color: isActive ? PTLAB.white : PTLAB.mainBlue, border: isActive ? "none" : `1px solid ${PTLAB.mainBlue}`, boxShadow: isActive ? `0 2px 5px ${PTLAB.mainBlue}80` : "none" }}>
                                     {c.name}
                                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
                                 </button>
-                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
+
+                                {/* GREEN '$' PAYMENT BUTTON ON THE RIGHT */}
+                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
+                                
                                 {showPaymentMenu === c.id && (
                                     <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-30 min-w-[160px]">
-                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 flex justify-between items-center border-b pb-1">
-                                            <span>Add Sessions</span>
-                                            <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className="text-red-500 hover:text-red-700 font-bold flex items-center gap-1 bg-red-50 px-1.5 rounded">✕ Remove</button>
-                                        </div>
+                                        <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Add Sessions</div>
                                         <div className="grid grid-cols-4 gap-1 mb-3">{[1,2,3,4,5,6,7,8,9,10,11,12].map(num => <button key={num} onClick={() => logPayment(c.id, num)} className="py-1 bg-gray-50 hover:bg-green-100 text-green-700 font-bold rounded text-xs transition-colors border border-gray-100">+{num}</button>)}</div>
                                         <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Corrections</div>
                                         <div className="grid grid-cols-3 gap-1">
@@ -559,12 +557,12 @@ export default function PTLabScheduler() {
                             {itaClients.map(c => {
                                 const isActive = c.id === activeClientId && !activeExtraActivity;
                                 return (
-                                    <div key={c.id} className="relative group">
+                                    <div key={c.id} className="relative group mt-1">
                                         <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
                                             style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
                                             {c.name}
                                         </button>
-                                        <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+                                        <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
                                     </div>
                                 )
                             })}
@@ -613,7 +611,6 @@ export default function PTLabScheduler() {
         </div>
       )}
 
-      {/* NEW: REGULAR CLIENT PANEL */}
       {showRegularPanel && (
         <div className="px-4 pb-2 animate-in fade-in slide-in-from-top-2">
           <div className="bg-white p-3 rounded-xl shadow-lg border border-gray-200 flex gap-2 max-w-md items-center mt-2">
