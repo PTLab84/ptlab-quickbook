@@ -112,16 +112,27 @@ export default function ItaReportDashboard() {
       
       {/* CSS for perfect PDF printing */}
       <style dangerouslySetInnerHTML={{__html: `
+        @page { margin: 0mm; } /* This completely removes the Safari URLs and page numbers */
         @media print {
             body * { visibility: hidden; }
             #printable-invoice, #printable-invoice * { visibility: visible; }
             
-            /* iOS Safari Pagination Fixes */
-            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 0; }
+            #printable-invoice { 
+                position: absolute; 
+                left: 0; 
+                top: 0; 
+                width: 100%; 
+                margin: 0; 
+                padding: 50px !important; /* Thick padding to contain the text */
+                box-sizing: border-box;
+            }
+            
             .fixed { position: absolute !important; }
             .overflow-y-auto { overflow: visible !important; }
-            
             .no-print { display: none !important; }
+            
+            /* Prevents awkward splits across pages */
+            .avoid-break { break-inside: avoid; page-break-inside: avoid; }
         }
       `}} />
 
@@ -222,7 +233,7 @@ export default function ItaReportDashboard() {
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm">
                 <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
                     
-                    {/* INVOICE CONTROLS - Added the no-print tag right here! */}
+                    {/* INVOICE CONTROLS */}
                     <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print">
                         <div>
                             <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
@@ -250,9 +261,9 @@ export default function ItaReportDashboard() {
                         </div>
                     </div>
 
-                    {/* ACTUAL PRINTABLE INVOICE */}
+                    {/* ACTUAL PRINTABLE INVOICE - Removed minHeight */}
                     <div className="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
-                        <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-8 md:p-12 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', minHeight: '1000px', fontFamily: 'Arial, sans-serif' }}>
+                        <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-8 md:p-12 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                             
                             {/* HEADER */}
                             <div className="flex justify-between items-start mb-6">
@@ -291,28 +302,19 @@ export default function ItaReportDashboard() {
                                     <tr className="font-bold">
                                         <th className="pb-3 text-center">Description</th>
                                         <th className="pb-3 text-center">Date(s)</th>
-                                        <th className="pb-3 text-center">Quantity</th>
+                                        <th className="pb-3 text-center">Quantity (Hrs)</th>
                                         <th className="pb-3 text-center">Unit Price</th>
                                         <th className="pb-3 text-right">Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* LIST EVERY DATE INDIVIDUALLY */}
-                                    {invoiceDates.map((date, i) => (
-                                        <tr key={i}>
-                                            <td className="py-2 text-center">Landscaping Labour</td>
-                                            <td className="py-2 text-center text-gray-700">{date}</td>
-                                            <td className="py-2 text-center text-gray-400">-</td>
-                                            <td className="py-2 text-center text-gray-400">-</td>
-                                            <td className="py-2 text-right text-gray-400">-</td>
-                                        </tr>
-                                    ))}
-
-                                    {/* PRIMARY LABOUR TOTAL ROW */}
+                                    {/* Primary Labour Row */}
                                     {unpaidHours > 0 && (
-                                        <tr className="font-bold bg-green-50/50">
-                                            <td className="py-2 text-center">Total Labour Hours</td>
-                                            <td className="py-2 text-center"></td>
+                                        <tr>
+                                            <td className="py-2 text-center">Landscaping Labour</td>
+                                            <td className="py-2 text-center text-gray-700 max-w-[200px] leading-relaxed">
+                                                {invoiceDates.length > 0 ? invoiceDates.join(', ') : todayStr}
+                                            </td>
                                             <td className="py-2 text-center">{unpaidHours}</td>
                                             <td className="py-2 text-center">${unitPrice.toFixed(2)}</td>
                                             <td className="py-2 text-right">${(unpaidHours * unitPrice).toFixed(2)}</td>
@@ -333,29 +335,28 @@ export default function ItaReportDashboard() {
                             </table>
 
                             {/* TOTAL */}
-                            <div className="flex justify-end pt-4 font-bold text-base mb-12">
+                            <div className="flex justify-end pt-4 font-bold text-base mb-12 avoid-break">
                                 <div className="w-1/2 flex justify-between">
                                     <span>Total Due</span>
                                     <span>${totalDue.toFixed(2)}</span>
                                 </div>
                             </div>
 
-                            {/* DIVIDER */}
-                            <div className="border-t-2 border-green-700 my-6"></div>
-
-                            {/* PAYMENT DETAILS */}
-                            <div className="space-y-1 mt-6 text-sm">
-                                <div className="font-bold">Name: Luca Tonetti</div>
-                                <div className="font-bold">BSB: 923100</div>
-                                <div className="font-bold">Account Number: 301182182</div>
-                                
-                                <div className="pt-4 pb-4">Please make payment within 7 days to the above bank account. If you have any questions, feel free to reach out.</div>
-                                
-                                <div className="font-bold pb-2">Contact Information</div>
-                                <div className="font-bold">Email: <a href="mailto:luca.toniz84@gmail.com" className="underline">luca.toniz84@gmail.com</a></div>
-                                <div className="font-bold">Phone: 0416 058 046</div>
-                                
-                                <div className="pt-6">Thank you for choosing my services. It was a pleasure working with you!</div>
+                            {/* PAYMENT DETAILS - Avoid breaking across pages */}
+                            <div className="avoid-break pt-4 border-t-2 border-green-700">
+                                <div className="space-y-1 mt-4 text-sm">
+                                    <div className="font-bold">Name: Luca Tonetti</div>
+                                    <div className="font-bold">BSB: 923100</div>
+                                    <div className="font-bold">Account Number: 301182182</div>
+                                    
+                                    <div className="pt-4 pb-4">Please make payment within 7 days to the above bank account. If you have any questions, feel free to reach out.</div>
+                                    
+                                    <div className="font-bold pb-2">Contact Information</div>
+                                    <div className="font-bold">Email: <a href="mailto:luca.toniz84@gmail.com" className="underline">luca.toniz84@gmail.com</a></div>
+                                    <div className="font-bold">Phone: 0416 058 046</div>
+                                    
+                                    <div className="pt-6">Thank you for choosing my services. It was a pleasure working with you!</div>
+                                </div>
                             </div>
 
                         </div>
