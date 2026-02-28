@@ -90,10 +90,12 @@ export default function ItaReportDashboard() {
       }
       
       const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
-      const msg = `Hi ${displayName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
+      const firstName = displayName.split(' ')[0]; // ONLY TAKES THE FIRST NAME
       
-      // Use window.location to trigger the native SMS app
-      window.location.href = `sms:${cleanPhone}&body=${encodeURIComponent(msg)}`;
+      const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
+      
+      // Open native SMS app
+      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
   }
 
   // --- AUTOMATED EMAIL GENERATOR ---
