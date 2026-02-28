@@ -84,13 +84,14 @@ export default function ItaReportDashboard() {
 
   // --- TEXT MESSAGE GENERATOR ---
   function sendTextInvoice() {
-      if (!invoiceClient?.phone) {
+      if (!invoiceClient || !invoiceClient.phone) {
           alert("No phone number found for this client. Please add it in Supabase!");
           return;
       }
       
       const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
-      const firstName = displayName.split(' ')[0]; // ONLY TAKES THE FIRST NAME
+      const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
+      const firstName = safeName.split(' ')[0]; // ONLY TAKES THE FIRST NAME safely
       
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
       
@@ -280,7 +281,7 @@ export default function ItaReportDashboard() {
                                 <span>✉️</span> {isSendingEmail ? "Sending..." : "Email Invoice"}
                             </button>
 
-                            {/* NEW TEXT BUTTON */}
+                            {/* TEXT BUTTON */}
                             <button onClick={sendTextInvoice} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex justify-center items-center gap-2">
                                 <span>💬</span> Text Client
                             </button>
