@@ -72,6 +72,20 @@ export default function PTReportDashboard() {
       await loadReportData(); 
   }
 
+  // --- TEXT MESSAGE GENERATOR ---
+  function sendTextInvoice() {
+      if (!invoiceClient?.phone) {
+          alert("No phone number found for this client. Please add it in Supabase!");
+          return;
+      }
+      
+      const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
+      const msg = `Hi ${displayName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
+      
+      // Use window.location to trigger the native SMS app
+      window.location.href = `sms:${cleanPhone}&body=${encodeURIComponent(msg)}`;
+  }
+
   // --- AUTOMATED EMAIL GENERATOR ---
   async function sendEmailInvoice() {
       if (!invoiceClient) return;
@@ -149,7 +163,7 @@ export default function PTReportDashboard() {
           if (result.success) {
               alert(`✅ Invoice successfully emailed to ${targetEmail}!`);
           } else {
-              alert(`❌ Email failed: ${result.error}\n\n(Note: If on free tier, ensure the email is verified in Resend).`);
+              alert(`❌ Email failed: ${result.error}`);
           }
       } catch (err) {
           alert("Network error sending email.");
@@ -299,11 +313,17 @@ export default function PTReportDashboard() {
                     </div>
 
                     <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
-                        {/* THE NEW EMAIL BUTTON */}
+                        {/* EMAIL BUTTON */}
                         <button onClick={sendEmailInvoice} disabled={isSendingEmail} className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl shadow-md hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
                             <span>✉️</span> {isSendingEmail ? "Sending..." : "Email Invoice"}
                         </button>
                         
+                        {/* NEW TEXT BUTTON */}
+                        <button onClick={sendTextInvoice} className="w-full py-3 bg-green-500 text-white font-bold rounded-xl shadow-md hover:bg-green-600 transition-colors flex justify-center items-center gap-2">
+                            <span>💬</span> Text Client
+                        </button>
+
+                        {/* PDF BUTTON */}
                         <button onClick={() => {
                             const originalTitle = document.title;
                             document.title = `Invoice_${invoiceNumber}_${displayName}`;
