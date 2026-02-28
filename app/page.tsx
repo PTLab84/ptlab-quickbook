@@ -40,10 +40,10 @@ function addDays(date: Date, days: number) { const d = new Date(date); d.setDate
 
 function getMonday(offsetWeeks = 0) {
   const date = new Date();
+  date.setHours(0, 0, 0, 0);
   const day = date.getDay();
   const diff = (day === 0 ? -6 : 1) - day; 
   date.setDate(date.getDate() + diff + (offsetWeeks * 7));
-  date.setHours(0, 0, 0, 0);
   return date;
 }
 
@@ -65,6 +65,8 @@ export default function PTLabScheduler() {
   const [googleBusy, setGoogleBusy] = useState<Map<SlotKey, string>>(new Map());
   const [weekOffset, setWeekOffset] = useState(0); 
   
+  const [isClientListExpanded, setIsClientListExpanded] = useState(false);
+
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [introName, setIntroName] = useState("");
   
@@ -349,12 +351,14 @@ export default function PTLabScheduler() {
     }
   }
 
-  async function logPayment(clientId: string, sessionModifier: number) {
+  async function logPayment(clientId: string, sessionModifier: number, clientName: string) {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     const newBalance = client.sessions_remaining + sessionModifier;
+    
     setClients(prev => prev.map(c => c.id === clientId ? { ...c, sessions_remaining: newBalance } : c));
     setShowPaymentMenu(null); 
+    
     await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', clientId);
   }
 
@@ -488,7 +492,6 @@ export default function PTLabScheduler() {
   return (
     <main className="h-screen w-full flex flex-col font-sans overflow-hidden" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
       
-      {/* CSS to hide horizontal scrollbars while keeping them functional */}
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -496,9 +499,7 @@ export default function PTLabScheduler() {
 
       <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col gap-3 shrink-0 relative">
          
-         {/* TOP ROW: Action Buttons & Date Nav */}
          <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 w-full">
-            {/* Buttons List */}
             <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar w-full xl:w-auto pb-1 xl:pb-0">
                 <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
                 <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showRegularPanel ? PTLAB.navy : PTLAB.white, color: showRegularPanel ? PTLAB.white : PTLAB.navy, borderColor: PTLAB.navy }}>+ Regular PT</button>
@@ -524,7 +525,6 @@ export default function PTLabScheduler() {
                 <button onClick={activateMichelle} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: isMichelleActive ? "#ef4444" : "transparent", color: isMichelleActive ? "white" : "#ef4444", borderColor: "#ef4444" }}>Michelle</button>
             </div>
 
-            {/* Date Nav */}
             <div className="flex items-center justify-between w-full xl:w-auto gap-4 shrink-0">
                  {!hasCurrentWeekBookings && !loading && (
                      <button 
@@ -543,47 +543,42 @@ export default function PTLabScheduler() {
             </div>
          </div>
 
-         {/* CLIENT ROWS */}
          <div className="flex flex-col gap-1 w-full border-t border-gray-100 pt-2">
             
-            {/* PTLab Clients Carousel */}
-            <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-12 shrink-0 text-right">PTLab</span>
-                <div className="flex flex-nowrap items-center gap-2 overflow-x-auto hide-scrollbar pb-2 pt-2 w-full">
-                    {ptClients.map(c => {
-                        const isActive = c.id === activeClientId && !activeExtraActivity;
-                        const balance = c.sessions_remaining;
-                        return (
-                        <div key={c.id} className="relative group shrink-0">
-                            <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
-                            
-                            <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
-                                style={{ backgroundColor: isActive ? PTLAB.mainBlue : "transparent", color: isActive ? PTLAB.white : PTLAB.mainBlue, border: isActive ? "none" : `1px solid ${PTLAB.mainBlue}`, boxShadow: isActive ? `0 2px 5px ${PTLAB.mainBlue}80` : "none" }}>
-                                {c.name}
-                                <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
-                            </button>
+            <div className="flex items-start gap-3">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-12 shrink-0 text-right mt-2">PTLab</span>
+                
+                <div className="flex-1 min-w-0">
+                    <div className={`flex items-center gap-2 w-full ${isClientListExpanded ? 'flex-wrap' : 'flex-nowrap overflow-x-auto hide-scrollbar'} pb-2 pt-1 transition-all`}>
+                        {ptClients.map(c => {
+                            const isActive = c.id === activeClientId && !activeExtraActivity;
+                            const balance = c.sessions_remaining;
+                            return (
+                            <div key={c.id} className="relative group shrink-0">
+                                <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+                                
+                                <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
+                                    style={{ backgroundColor: isActive ? PTLAB.mainBlue : "transparent", color: isActive ? PTLAB.white : PTLAB.mainBlue, border: isActive ? "none" : `1px solid ${PTLAB.mainBlue}`, boxShadow: isActive ? `0 2px 5px ${PTLAB.mainBlue}80` : "none" }}>
+                                    {c.name}
+                                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
+                                </button>
 
-                            <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(showPaymentMenu === c.id ? null : c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
-                            
-                            {showPaymentMenu === c.id && (
-                                <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 p-3 z-30 min-w-[160px]">
-                                    <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Add Sessions</div>
-                                    <div className="grid grid-cols-4 gap-1 mb-3">{[1,2,3,4,5,6,7,8,9,10,11,12].map(num => <button key={num} onClick={() => logPayment(c.id, num)} className="py-1 bg-gray-50 hover:bg-green-100 text-green-700 font-bold rounded text-xs transition-colors border border-gray-100">+{num}</button>)}</div>
-                                    <div className="text-[10px] uppercase tracking-wider text-gray-400 font-bold mb-1.5 text-center border-b pb-1">Corrections</div>
-                                    <div className="grid grid-cols-3 gap-1">
-                                        <button onClick={() => logPayment(c.id, -1)} className="py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded text-xs transition-colors border border-red-100">-1</button>
-                                        <button onClick={() => logPayment(c.id, -5)} className="py-1 bg-red-50 hover:bg-red-100 text-red-600 font-bold rounded text-xs transition-colors border border-red-100">-5</button>
-                                        <button onClick={() => setExactBalance(c.id, 0)} className="py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded text-xs transition-colors">Set 0</button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        )
-                    })}
+                                {/* THIS BUTTON NOW TRIGGERS THE FULL SCREEN MODAL */}
+                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
+                            </div>
+                            )
+                        })}
+                    </div>
                 </div>
+
+                <button 
+                    onClick={() => setIsClientListExpanded(!isClientListExpanded)}
+                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors mt-1"
+                >
+                    {isClientListExpanded ? '▲' : '▼'}
+                </button>
             </div>
 
-            {/* Ita Job Clients Carousel */}
             {itaClients.length > 0 && (
                 <div className="flex items-center gap-3 border-t border-gray-50 pt-1">
                     <span className="text-[10px] font-black text-green-600 uppercase tracking-widest w-12 shrink-0 text-right">Ita Job</span>
@@ -604,7 +599,6 @@ export default function PTLabScheduler() {
                 </div>
             )}
 
-            {/* Extra Row */}
             {activeExtraActivity && (
                 <div className="flex items-center gap-3 border-t border-gray-50 pt-1">
                     <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-12 shrink-0 text-right">Extra</span>
@@ -619,7 +613,7 @@ export default function PTLabScheduler() {
          </div>
       </header>
 
-      {/* POPUP PANELS FOR NEW CLIENTS */}
+      {/* FLOATING ACTION PANELS */}
       {showIntroPanel && (
         <div className="px-4 pb-2 absolute top-24 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
@@ -661,11 +655,9 @@ export default function PTLabScheduler() {
       )}
 
       <section className="flex-1 p-2 md:p-4 min-h-0 relative">
-        {/* UNIFIED SCROLL CONTAINER - THIS FIXES THE STICKY TIME COLUMN! */}
         <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-auto hide-scrollbar relative">
           <div className="min-w-[800px] flex flex-col relative">
             
-            {/* STICKY CALENDAR HEADER */}
             <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-40 sticky top-0 shadow-sm">
                 <div className="sticky left-0 z-50 bg-white border-r border-gray-100 shadow-[2px_0_4px_rgba(0,0,0,0.03)]"></div> 
                 {DAYS.map((d, i) => {
@@ -681,10 +673,8 @@ export default function PTLabScheduler() {
                 })}
             </div>
 
-            {/* CALENDAR BODY */}
             <div className="flex min-w-full relative" style={{ height: slots.length * SLOT_HEIGHT }}>
                 
-                {/* STICKY TIME COLUMN */}
                 <div className="w-[60px] shrink-0 bg-white border-r border-gray-100 sticky left-0 z-30 shadow-[2px_0_4px_rgba(0,0,0,0.03)]">
                     {slots.map((t, i) => (
                         <div key={t} className="absolute w-full text-[12px] font-bold text-right pr-2 flex items-center justify-end" style={{ top: i * SLOT_HEIGHT, height: SLOT_HEIGHT, color: '#192230' }}>
@@ -693,7 +683,6 @@ export default function PTLabScheduler() {
                     ))}
                 </div>
 
-                {/* GRID COLUMNS */}
                 <div className="flex-1 flex bg-white relative z-10">
                     {weekDates.map(d => {
                         const dayDateStr = isoDate(d);
@@ -745,7 +734,6 @@ export default function PTLabScheduler() {
                                     color = "#a16207";
                                     blockBorder = "2px solid #eab308";
                                 } else {
-                                    // NEW REQUESTED STYLE FOR PTLAB BLOCKS
                                     bg = "#192230"; 
                                     color = "white"; 
                                     blockBorder = "2px solid #d4703e"; 
@@ -806,7 +794,6 @@ export default function PTLabScheduler() {
                                         key={block.keys[0]}
                                         className="absolute overflow-hidden flex items-center justify-center m-[0px] shadow-sm transition-all"
                                         style={{
-                                            // NEW GAP CALCULATIONS TO PREVENT THE CONNECTED BLOB LOOK
                                             top: (block.startIdx * SLOT_HEIGHT) + 2,
                                             height: (block.span * SLOT_HEIGHT) - 4,
                                             left: "2px",
@@ -861,6 +848,40 @@ export default function PTLabScheduler() {
             </div>
           </div>
         </div>
+
+        {/* NEW PAYMENT MENU MODAL */}
+        {showPaymentMenu && (() => {
+            const client = clients.find(c => c.id === showPaymentMenu);
+            if (!client) return null;
+            return (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
+                    <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl animate-in zoom-in-95">
+                        <div className="flex justify-between items-center mb-4">
+                            <h2 className="text-2xl font-black text-[#16202e] truncate pr-2">{client.name}</h2>
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold shrink-0 ${client.sessions_remaining <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+                                Bal: {client.sessions_remaining}
+                            </span>
+                        </div>
+
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Add Pre-Paid Sessions</div>
+                        <div className="grid grid-cols-4 gap-2 mb-6">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
+                                <button key={num} onClick={() => logPayment(client.id, num, client.name)} className="py-3 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 font-bold rounded-xl shadow-sm text-sm transition-colors">+{num}</button>
+                            ))}
+                        </div>
+
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Corrections</div>
+                        <div className="grid grid-cols-3 gap-2 mb-6">
+                            <button onClick={() => logPayment(client.id, -1, client.name)} className="py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold rounded-xl shadow-sm text-sm transition-colors">-1</button>
+                            <button onClick={() => logPayment(client.id, -5, client.name)} className="py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-bold rounded-xl shadow-sm text-sm transition-colors">-5</button>
+                            <button onClick={() => setExactBalance(client.id, 0)} className="py-2.5 bg-gray-100 hover:bg-gray-200 border border-gray-300 text-gray-700 font-bold rounded-xl shadow-sm text-sm transition-colors">Set 0</button>
+                        </div>
+
+                        <button onClick={() => setShowPaymentMenu(null)} className="w-full py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancel</button>
+                    </div>
+                </div>
+            );
+        })()}
 
         {itaFinalizePrompt?.isOpen && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm p-4">

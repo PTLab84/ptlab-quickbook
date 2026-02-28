@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const { emailTo, clientName, invoiceNumber, totalDue, htmlBody } = await req.json();
 
     const data = await resend.emails.send({
-      from: 'PTLab Invoicing <onboarding@resend.dev>', // Resend's required default sender
+      from: 'PTLab Invoicing <accounts@protraininglab.com.au>', // Resend's required default sender
       to: [emailTo], 
       bcc: ['luca.toniz84@gmail.com'], // Silently copies you on every invoice!
       subject: `Invoice #${invoiceNumber} - ${clientName}`,
