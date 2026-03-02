@@ -16,7 +16,7 @@ const PRIVATE_KEY = `-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAA
 const CALENDAR_IDS = "protraininglab84@gmail.com"; 
 
 // ==========================================
-// LOGIC (Updated for DETAILS)
+// LOGIC
 // ==========================================
 
 const CLEAN_KEY = PRIVATE_KEY.replace(/\\n/g, '\n').trim();
@@ -43,7 +43,6 @@ export async function getBusySlots(start: Date, end: Date) {
     
     const allEvents: any[] = [];
 
-    // Loop through all calendars and get real event details
     const promises = calendarIds.map(async (calId) => {
       try {
         const res: any = await calendar.events.list({
@@ -52,16 +51,15 @@ export async function getBusySlots(start: Date, end: Date) {
           calendarId: calId,
           timeMin: start.toISOString(),
           timeMax: end.toISOString(),
-          singleEvents: true, // Expands recurring events (like weekly meetings)
+          singleEvents: true, 
           orderBy: 'startTime',
         });
         
         const items = res.data.items || [];
-        // We map them to a simple format for our app
         const cleanItems = items.map((item: any) => ({
-            start: item.start?.dateTime || item.start?.date, // Handle all-day events too
+            start: item.start?.dateTime || item.start?.date, 
             end: item.end?.dateTime || item.end?.date,
-            title: item.summary || "Busy", // Get the Title!
+            title: item.summary || "Busy", 
         }));
 
         allEvents.push(...cleanItems);
@@ -79,10 +77,16 @@ export async function getBusySlots(start: Date, end: Date) {
   }
 }
 
-// ADD EVENT
+// ADD EVENT (FIXED FOR SYDNEY TIMEZONE)
 export async function addGoogleEvent(clientName: string, startTime: string) {
-  const start = new Date(startTime);
-  const end = new Date(start.getTime() + 45 * 60000); 
+  // 1. Math Trick: Temporarily pretend the time is UTC just so we can safely add 45 minutes 
+  // without Vercel's server time zone interfering.
+  const mathDate = new Date(startTime + "Z");
+  mathDate.setUTCMinutes(mathDate.getUTCMinutes() + 45);
+  
+  // Format back to "YYYY-MM-DDTHH:mm:00"
+  const endTime = mathDate.toISOString().substring(0, 19); 
+
   const calendarIds = getCalendarIds();
   const client = await auth.getClient();
 
@@ -93,10 +97,16 @@ export async function addGoogleEvent(clientName: string, startTime: string) {
         auth: client,
         calendarId: calId,
         requestBody: {
-          summary: `PT: ${clientName}`,
-          location: "PTLab Gym",
-          start: { dateTime: start.toISOString() },
-          end: { dateTime: end.toISOString() },
+          summary: clientName, // Uses exactly what the app sends (e.g. "PT: Chris" or "Ita Job: Adrienne")
+          location: clientName.includes("Ita Job") ? "Client Location" : "PTLab Gym", 
+          start: { 
+              dateTime: startTime, // Passes exactly "15:30"
+              timeZone: "Australia/Sydney" // Forces Google to lock it to Sydney!
+          },
+          end: { 
+              dateTime: endTime, 
+              timeZone: "Australia/Sydney" 
+          },
         },
       });
       console.log(`✅ Success: Added to ${calId}`);
@@ -108,24 +118,25 @@ export async function addGoogleEvent(clientName: string, startTime: string) {
   await Promise.all(promises);
 }
 
-// ==========================================
-// DELETE EVENT FROM GOOGLE (Upgraded)
-// ==========================================
+// DELETE EVENT FROM GOOGLE (FIXED FOR SYDNEY TIMEZONE)
 export async function deleteGoogleEvent(searchTitle: string, startTime: string) {
-  const start = new Date(startTime);
+  // Convert the string to a real date, roughly estimating Sydney timezone (+10:00).
+  const searchCenter = new Date(startTime + "+10:00");
+  
   const calendarIds = getCalendarIds();
   const client = await auth.getClient();
 
   const promises = calendarIds.map(async (calId) => {
     try {
-      // Look 15 mins before and 60 mins after to guarantee we catch it
+      // We look 3 hours BEFORE and 3 hours AFTER the click to create a massive 6-hour net.
+      // This guarantees we catch the event, even if Daylight Savings shifted it by an hour!
       const res: any = await calendar.events.list({
         // @ts-ignore
         auth: client,
         calendarId: calId,
-        timeMin: new Date(start.getTime() - 15 * 60000).toISOString(), 
-        timeMax: new Date(start.getTime() + 60 * 60000).toISOString(), 
-        q: searchTitle, // Find the exact title
+        timeMin: new Date(searchCenter.getTime() - 3 * 3600000).toISOString(), 
+        timeMax: new Date(searchCenter.getTime() + 3 * 3600000).toISOString(), 
+        q: searchTitle, // We look for the exact name (e.g. "Ita Job: Adrienne")
         singleEvents: true,
       });
 
