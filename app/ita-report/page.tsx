@@ -113,7 +113,7 @@ export default function ItaReportDashboard() {
   }
 
   // ==========================================
-  // INVOICE CALCULATIONS & SAFE VARIABLES
+  // INVOICE CALCULATIONS & BULLETPROOF VARIABLES
   // ==========================================
   const unpaidHours = invoiceClient ? Math.abs(invoiceClient.sessions_remaining) : 0;
   const invoiceSubtotal = unpaidHours * unitPrice;
@@ -122,11 +122,10 @@ export default function ItaReportDashboard() {
   const todayStr = new Date().toLocaleDateString('en-AU');
   const invoiceNumber = invoiceClient ? Math.floor(Math.random() * 900) + 100 : "000";
 
-  // ALWAYS provide a safe fallback so TypeScript knows this is definitely a string
-  const displayName = invoiceClient?.billing_name || invoiceClient?.name || "Client";
-  const displayEmail = invoiceClient?.email || "No email on file";
+  // Force TypeScript to recognize these as absolute strings
+  const displayName: string = String(invoiceClient?.billing_name || invoiceClient?.name || "Client");
+  const displayEmail: string = String(invoiceClient?.email || "No email on file");
 
-  // Distribute the total hours across dates perfectly, based on the calendar slots
   const dailyRows: {date: string, hours: number}[] = [];
   const totalBlocks = invoiceBookings.length;
   let remainingHoursToAllocate = unpaidHours;
@@ -153,7 +152,7 @@ export default function ItaReportDashboard() {
   }
 
   // ==========================================
-  // ACTION BUTTONS (Using the safe variables above)
+  // ACTION BUTTONS 
   // ==========================================
   function sendTextInvoice() {
       if (!invoiceClient || !invoiceClient.phone) {
@@ -161,8 +160,8 @@ export default function ItaReportDashboard() {
           return;
       }
       
-      const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
-      const firstName = displayName.split(' ')[0]; // 100% safe now
+      const cleanPhone = String(invoiceClient.phone).replace(/\s+/g, '');
+      const firstName = displayName.split(' ')[0]; 
       
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
       
