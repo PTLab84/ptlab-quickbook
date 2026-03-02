@@ -45,7 +45,7 @@ export default function ItaReportDashboard() {
 
   useEffect(() => { 
       loadReportData(); 
-      setNewCustomDate(new Date().toISOString().split('T')[0]); // Default to today
+      setNewCustomDate(new Date().toISOString().split('T')[0]); 
   }, []);
 
   async function openInvoice(client: Client) {
@@ -112,23 +112,8 @@ export default function ItaReportDashboard() {
       loadReportData();
   }
 
-  function sendTextInvoice() {
-      if (!invoiceClient || !invoiceClient.phone) {
-          alert("No phone number found for this client. Please add it in Supabase!");
-          return;
-      }
-      
-      const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
-      const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
-      const firstName = safeName.split(' ')[0]; 
-      
-      const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
-      
-      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
-  }
-
   // ==========================================
-  // INVOICE CALCULATIONS & PROPORTIONAL SPLIT
+  // INVOICE CALCULATIONS & SAFE VARIABLES
   // ==========================================
   const unpaidHours = invoiceClient ? Math.abs(invoiceClient.sessions_remaining) : 0;
   const invoiceSubtotal = unpaidHours * unitPrice;
@@ -136,6 +121,10 @@ export default function ItaReportDashboard() {
   const totalDue = invoiceSubtotal + customTotal;
   const todayStr = new Date().toLocaleDateString('en-AU');
   const invoiceNumber = invoiceClient ? Math.floor(Math.random() * 900) + 100 : "000";
+
+  // ALWAYS provide a safe fallback so TypeScript knows this is definitely a string
+  const displayName = invoiceClient?.billing_name || invoiceClient?.name || "Client";
+  const displayEmail = invoiceClient?.email || "No email on file";
 
   // Distribute the total hours across dates perfectly, based on the calendar slots
   const dailyRows: {date: string, hours: number}[] = [];
@@ -163,10 +152,23 @@ export default function ItaReportDashboard() {
       dailyRows.push({ date: todayStr, hours: unpaidHours });
   }
 
-  const displayName = invoiceClient?.billing_name || invoiceClient?.name;
-  const displayEmail = invoiceClient?.email || "No email on file";
+  // ==========================================
+  // ACTION BUTTONS (Using the safe variables above)
+  // ==========================================
+  function sendTextInvoice() {
+      if (!invoiceClient || !invoiceClient.phone) {
+          alert("No phone number found for this client. Please add it in Supabase!");
+          return;
+      }
+      
+      const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
+      const firstName = displayName.split(' ')[0]; // 100% safe now
+      
+      const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
+      
+      window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
+  }
 
-  // --- AUTOMATED EMAIL GENERATOR ---
   async function sendEmailInvoice() {
       if (!invoiceClient) return;
       
