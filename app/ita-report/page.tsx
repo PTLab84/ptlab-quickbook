@@ -25,12 +25,14 @@ export default function ItaReportDashboard() {
 
   // Invoice State
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
+  const [invoiceBookings, setInvoiceBookings] = useState<Booking[]>([]);
   const [invoiceDates, setInvoiceDates] = useState<string[]>([]);
   const [unitPrice, setUnitPrice] = useState<number>(70);
   const [customItems, setCustomItems] = useState<{desc: string, date: string, qty: number, price: number}[]>([]);
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomQty, setNewCustomQty] = useState("1");
   const [newCustomPrice, setNewCustomPrice] = useState("");
+  const [newCustomDate, setNewCustomDate] = useState("");
 
   async function loadReportData() {
     setLoading(true);
@@ -41,11 +43,14 @@ export default function ItaReportDashboard() {
     setLoading(false);
   }
 
-  useEffect(() => { loadReportData(); }, []);
+  useEffect(() => { 
+      loadReportData(); 
+      setNewCustomDate(new Date().toISOString().split('T')[0]); // Default to today
+  }, []);
 
   async function openInvoice(client: Client) {
     setLoading(true);
-    const { data, error } = await supabase.from('bookings').select('slot_key').eq('client_id', client.id).eq('processed', true).neq('paid', true).order('slot_key', { ascending: true });
+    const { data, error } = await supabase.from('bookings').select('*').eq('client_id', client.id).eq('processed', true).neq('paid', true).order('slot_key', { ascending: true });
     if (error) { alert("Database error."); setLoading(false); return; }
 
     const rawDates = Array.from(new Set((data || []).map(b => b.slot_key.split('|')[0])));
@@ -54,24 +59,31 @@ export default function ItaReportDashboard() {
         return `${day}/${m}/${y}`;
     });
 
+    setInvoiceBookings(data || []);
     setInvoiceDates(formattedDates);
     setInvoiceClient(client);
     setUnitPrice(70);
     setCustomItems([]);
+    setNewCustomDate(new Date().toISOString().split('T')[0]);
     setLoading(false);
   }
 
   function addCustomItem() {
-      if (!newCustomDesc || !newCustomPrice || !newCustomQty) return;
+      if (!newCustomDesc || !newCustomPrice || !newCustomQty || !newCustomDate) return;
+      
+      const [y, m, d] = newCustomDate.split('-');
+      const displayDate = `${d}/${m}/${y}`;
+
       setCustomItems([...customItems, { 
           desc: newCustomDesc, 
-          date: new Date().toLocaleDateString('en-AU'), 
+          date: displayDate, 
           qty: parseFloat(newCustomQty),
           price: parseFloat(newCustomPrice) 
       }]);
       setNewCustomDesc("");
       setNewCustomPrice("");
       setNewCustomQty("1");
+      setNewCustomDate(new Date().toISOString().split('T')[0]);
   }
 
   async function markInvoicePaid(clientId: string, clientName: string) {
@@ -82,7 +94,24 @@ export default function ItaReportDashboard() {
       await loadReportData(); 
   }
 
-  // --- TEXT MESSAGE GENERATOR ---
+  async function removeItaDate(dateStr: string) {
+      if (!window.confirm(`Remove ${dateStr} from this invoice?\n(Note: This removes the date from the list but does NOT change the financial balance).`)) return;
+      
+      const [d, m, y] = dateStr.split('/');
+      const isoDate = `${y}-${m}-${d}`;
+      
+      const bookingsToDelete = invoiceBookings.filter(b => b.slot_key.startsWith(isoDate));
+      const idsToDelete = bookingsToDelete.map(b => b.id);
+      
+      if (idsToDelete.length > 0) {
+          await supabase.from('bookings').delete().in('id', idsToDelete);
+      }
+      
+      setInvoiceBookings(prev => prev.filter(b => !idsToDelete.includes(b.id)));
+      setInvoiceDates(prev => prev.filter(date => date !== dateStr));
+      loadReportData();
+  }
+
   function sendTextInvoice() {
       if (!invoiceClient || !invoiceClient.phone) {
           alert("No phone number found for this client. Please add it in Supabase!");
@@ -91,21 +120,57 @@ export default function ItaReportDashboard() {
       
       const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
       const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
-      const firstName = safeName.split(' ')[0]; // ONLY TAKES THE FIRST NAME safely
+      const firstName = safeName.split(' ')[0]; 
       
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
       
-      // Open native SMS app
       window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
   }
+
+  // ==========================================
+  // INVOICE CALCULATIONS & PROPORTIONAL SPLIT
+  // ==========================================
+  const unpaidHours = invoiceClient ? Math.abs(invoiceClient.sessions_remaining) : 0;
+  const invoiceSubtotal = unpaidHours * unitPrice;
+  const customTotal = customItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
+  const totalDue = invoiceSubtotal + customTotal;
+  const todayStr = new Date().toLocaleDateString('en-AU');
+  const invoiceNumber = invoiceClient ? Math.floor(Math.random() * 900) + 100 : "000";
+
+  // Distribute the total hours across dates perfectly, based on the calendar slots
+  const dailyRows: {date: string, hours: number}[] = [];
+  const totalBlocks = invoiceBookings.length;
+  let remainingHoursToAllocate = unpaidHours;
+
+  if (invoiceDates.length > 0) {
+      invoiceDates.forEach((dateStr, index) => {
+          const blocksThisDay = invoiceBookings.filter(b => {
+              const [y, m, day] = b.slot_key.split('|')[0].split('-');
+              return `${day}/${m}/${y}` === dateStr;
+          }).length;
+          
+          let hours = 0;
+          if (index === invoiceDates.length - 1 || totalBlocks === 0) {
+              hours = Number(remainingHoursToAllocate.toFixed(2));
+          } else {
+              hours = Number(((blocksThisDay / totalBlocks) * unpaidHours).toFixed(2));
+              remainingHoursToAllocate -= hours;
+          }
+          
+          dailyRows.push({ date: dateStr, hours });
+      });
+  } else if (unpaidHours > 0) {
+      dailyRows.push({ date: todayStr, hours: unpaidHours });
+  }
+
+  const displayName = invoiceClient?.billing_name || invoiceClient?.name;
+  const displayEmail = invoiceClient?.email || "No email on file";
 
   // --- AUTOMATED EMAIL GENERATOR ---
   async function sendEmailInvoice() {
       if (!invoiceClient) return;
       
       const targetEmail = invoiceClient.email || "protraininglab84@gmail.com";
-      const displayName = invoiceClient.billing_name || invoiceClient.name;
-      
       setIsSendingEmail(true);
 
       const htmlBody = `
@@ -120,21 +185,28 @@ export default function ItaReportDashboard() {
                 <thead>
                     <tr style="border-bottom: 2px solid #15803d; text-align: left;">
                         <th style="padding: 8px 0;">Description</th>
-                        <th style="padding: 8px 0;">Date(s)</th>
+                        <th style="padding: 8px 0;">Date</th>
+                        <th style="padding: 8px 0; text-align: center;">Qty (Hrs)</th>
+                        <th style="padding: 8px 0; text-align: center;">Rate</th>
                         <th style="padding: 8px 0; text-align: right;">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${unpaidHours > 0 ? `
+                    ${unpaidHours > 0 ? dailyRows.map(row => `
                     <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 8px 0;">Landscaping Labour (${unpaidHours} hrs)</td>
-                        <td style="padding: 8px 0; font-size: 12px; color: #666;">${invoiceDates.join(', ')}</td>
-                        <td style="padding: 8px 0; text-align: right;">$${(unpaidHours * unitPrice).toFixed(2)}</td>
-                    </tr>` : ''}
+                        <td style="padding: 8px 0;">Landscaping Labour</td>
+                        <td style="padding: 8px 0; font-size: 12px; color: #666;">${row.date}</td>
+                        <td style="padding: 8px 0; text-align: center;">${row.hours}</td>
+                        <td style="padding: 8px 0; text-align: center;">$${unitPrice.toFixed(2)}</td>
+                        <td style="padding: 8px 0; text-align: right;">$${(row.hours * unitPrice).toFixed(2)}</td>
+                    </tr>`).join('') : ''}
+                    
                     ${customItems.map(item => `
                         <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 8px 0;">${item.desc} (x${item.qty})</td>
-                            <td style="padding: 8px 0;">${item.date}</td>
+                            <td style="padding: 8px 0;">${item.desc}</td>
+                            <td style="padding: 8px 0; font-size: 12px; color: #666;">${item.date}</td>
+                            <td style="padding: 8px 0; text-align: center;">${item.qty}</td>
+                            <td style="padding: 8px 0; text-align: center;">$${item.price.toFixed(2)}</td>
                             <td style="padding: 8px 0; text-align: right;">$${(item.qty * item.price).toFixed(2)}</td>
                         </tr>
                     `).join('')}
@@ -184,18 +256,6 @@ export default function ItaReportDashboard() {
 
   const totalUnpaidHours = clients.reduce((sum, c) => sum + (c.sessions_remaining < 0 ? Math.abs(c.sessions_remaining) : 0), 0);
   const totalHistoricalHours = clients.reduce((sum, c) => sum + c.historical_attended, 0);
-
-  // Invoice Calculations
-  const unpaidHours = invoiceClient ? Math.abs(invoiceClient.sessions_remaining) : 0;
-  const invoiceSubtotal = unpaidHours * unitPrice;
-  const customTotal = customItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalDue = invoiceSubtotal + customTotal;
-  const todayStr = new Date().toLocaleDateString('en-AU');
-  const invoiceNumber = invoiceClient ? Math.floor(Math.random() * 900) + 100 : "000";
-
-  // Smart Billing Info
-  const displayName = invoiceClient?.billing_name || invoiceClient?.name;
-  const displayEmail = invoiceClient?.email || "No email on file";
 
   return (
     <main className="min-h-screen p-4 md:p-8 font-sans bg-green-50 text-[#166534]">
@@ -268,12 +328,28 @@ export default function ItaReportDashboard() {
                         <div className="border-t border-gray-100 pt-4">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Add Extra Item</label>
                             <input type="text" placeholder="e.g. Pine Bark Fine Mulch" className="w-full p-2 border border-gray-300 rounded-lg text-sm mb-2 text-[#16202e]" value={newCustomDesc} onChange={e => setNewCustomDesc(e.target.value)} />
+                            <input type="date" className="w-full p-2 border border-gray-300 rounded-lg text-sm mb-2 text-[#16202e]" value={newCustomDate} onChange={e => setNewCustomDate(e.target.value)} />
                             <div className="flex gap-2 mb-2">
                                 <input type="number" placeholder="Qty" className="w-1/3 p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={newCustomQty} onChange={e => setNewCustomQty(e.target.value)} />
                                 <input type="number" placeholder="Price $" className="w-2/3 p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={newCustomPrice} onChange={e => setNewCustomPrice(e.target.value)} />
                             </div>
                             <button onClick={addCustomItem} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                         </div>
+
+                        {/* NEW DELETE DATES PANEL */}
+                        {invoiceDates.length > 0 && (
+                            <div className="border-t border-gray-100 pt-4">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Manage Dates</label>
+                                <div className="space-y-2 max-h-32 overflow-y-auto">
+                                    {invoiceDates.map(dateStr => (
+                                        <div key={dateStr} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                                            <span className="text-gray-700">{dateStr}</span>
+                                            <button onClick={() => removeItaDate(dateStr)} className="text-red-500 hover:text-red-700 font-bold" title="Remove Date (Does not affect balance)">✕</button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
                             {/* EMAIL BUTTON */}
@@ -333,33 +409,33 @@ export default function ItaReportDashboard() {
 
                             <table className="w-full text-left mb-8">
                                 <thead>
-                                    <tr className="font-bold">
-                                        <th className="pb-3 text-center">Description</th>
-                                        <th className="pb-3 text-center">Date(s)</th>
+                                    <tr className="font-bold border-b border-green-700">
+                                        <th className="pb-3 text-left">Description</th>
+                                        <th className="pb-3 text-center">Date</th>
                                         <th className="pb-3 text-center">Quantity (Hrs)</th>
                                         <th className="pb-3 text-center">Unit Price</th>
                                         <th className="pb-3 text-right">Cost</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {unpaidHours > 0 && (
-                                        <tr className="font-bold bg-green-50/50">
-                                            <td className="py-2 text-center">Landscaping Labour</td>
-                                            <td className="py-2 text-center text-xs text-gray-600 max-w-[200px] leading-relaxed">
-                                                {invoiceDates.length > 0 ? invoiceDates.join(', ') : todayStr}
+                                    {unpaidHours > 0 && dailyRows.map(row => (
+                                        <tr key={row.date} className="font-bold bg-green-50/50 border-b border-green-100/50">
+                                            <td className="py-3 text-left">Landscaping Labour</td>
+                                            <td className="py-3 text-center text-xs text-gray-600">
+                                                {row.date}
                                             </td>
-                                            <td className="py-2 text-center">{unpaidHours}</td>
-                                            <td className="py-2 text-center">${unitPrice.toFixed(2)}</td>
-                                            <td className="py-2 text-right">${(unpaidHours * unitPrice).toFixed(2)}</td>
+                                            <td className="py-3 text-center">{row.hours}</td>
+                                            <td className="py-3 text-center">${unitPrice.toFixed(2)}</td>
+                                            <td className="py-3 text-right">${(row.hours * unitPrice).toFixed(2)}</td>
                                         </tr>
-                                    )}
+                                    ))}
                                     {customItems.map((item, i) => (
-                                        <tr key={i}>
-                                            <td className="py-2 text-center">{item.desc}</td>
-                                            <td className="py-2 text-center">{item.date}</td>
-                                            <td className="py-2 text-center">{item.qty}</td>
-                                            <td className="py-2 text-center">${item.price.toFixed(2)}</td>
-                                            <td className="py-2 text-right">${(item.qty * item.price).toFixed(2)}</td>
+                                        <tr key={i} className="border-b border-gray-100">
+                                            <td className="py-3 text-left">{item.desc}</td>
+                                            <td className="py-3 text-center text-xs text-gray-600">{item.date}</td>
+                                            <td className="py-3 text-center">{item.qty}</td>
+                                            <td className="py-3 text-center">${item.price.toFixed(2)}</td>
+                                            <td className="py-3 text-right">${(item.qty * item.price).toFixed(2)}</td>
                                         </tr>
                                     ))}
                                 </tbody>

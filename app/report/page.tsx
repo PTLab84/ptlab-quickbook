@@ -33,6 +33,7 @@ export default function PTReportDashboard() {
   const [customItems, setCustomItems] = useState<{desc: string, date: string, price: number}[]>([]);
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomPrice, setNewCustomPrice] = useState("");
+  const [newCustomDate, setNewCustomDate] = useState(""); // NEW: Custom Date State
 
   async function loadReportData() {
     setLoading(true);
@@ -45,7 +46,10 @@ export default function PTReportDashboard() {
     setLoading(false);
   }
 
-  useEffect(() => { loadReportData(); }, []);
+  useEffect(() => { 
+      loadReportData(); 
+      setNewCustomDate(new Date().toISOString().split('T')[0]); // Default to today
+  }, []);
 
   async function openInvoice(client: Client) {
     setLoading(true);
@@ -54,14 +58,21 @@ export default function PTReportDashboard() {
     setInvoiceClient(client);
     setUnitPrice(client.type === 'intro' ? 50 : 75);
     setCustomItems([]);
+    setNewCustomDate(new Date().toISOString().split('T')[0]); // Reset to today when opening
     setLoading(false);
   }
 
   function addCustomItem() {
-      if (!newCustomDesc || !newCustomPrice) return;
-      setCustomItems([...customItems, { desc: newCustomDesc, date: new Date().toLocaleDateString('en-AU'), price: parseFloat(newCustomPrice) }]);
+      if (!newCustomDesc || !newCustomPrice || !newCustomDate) return;
+      
+      // Format the YYYY-MM-DD to DD/MM/YYYY for the invoice
+      const [y, m, d] = newCustomDate.split('-');
+      const displayDate = `${d}/${m}/${y}`;
+
+      setCustomItems([...customItems, { desc: newCustomDesc, date: displayDate, price: parseFloat(newCustomPrice) }]);
       setNewCustomDesc("");
       setNewCustomPrice("");
+      setNewCustomDate(new Date().toISOString().split('T')[0]); // Reset to today
   }
 
   async function markInvoicePaid(clientId: string, clientName: string) {
@@ -70,6 +81,23 @@ export default function PTReportDashboard() {
       await supabase.from('clients').update({ sessions_remaining: 0 }).eq('id', clientId);
       await supabase.from('bookings').update({ paid: true }).eq('client_id', clientId).eq('processed', true).neq('paid', true);
       await loadReportData(); 
+  }
+
+  // --- NEW DELETE SESSION FUNCTION ---
+  async function removePTBooking(booking: Booking) {
+      if (!window.confirm("Remove this session from the invoice and refund 1 credit to the client?")) return;
+      
+      // 1. Delete from Database
+      await supabase.from('bookings').delete().eq('id', booking.id);
+      
+      // 2. Refund 1 session
+      const newBalance = invoiceClient!.sessions_remaining + 1;
+      await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', invoiceClient!.id);
+      
+      // 3. Update UI instantly
+      setInvoiceBookings(prev => prev.filter(b => b.id !== booking.id));
+      setInvoiceClient({ ...invoiceClient!, sessions_remaining: newBalance });
+      loadReportData(); 
   }
 
   // --- TEXT MESSAGE GENERATOR ---
@@ -81,11 +109,10 @@ export default function PTReportDashboard() {
       
       const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
       const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
-      const firstName = safeName.split(' ')[0]; // ONLY TAKES THE FIRST NAME safely
+      const firstName = safeName.split(' ')[0]; 
       
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
       
-      // Open native SMS app
       window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
   }
 
@@ -309,11 +336,30 @@ export default function PTReportDashboard() {
                     <div className="border-t border-gray-100 pt-4">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Add Custom Item</label>
                         <input type="text" placeholder="Description" className="w-full p-2 border border-gray-300 rounded-lg text-sm mb-2 text-[#16202e]" value={newCustomDesc} onChange={e => setNewCustomDesc(e.target.value)} />
-                        <div className="flex gap-2">
-                            <input type="number" placeholder="Price $" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={newCustomPrice} onChange={e => setNewCustomPrice(e.target.value)} />
-                            <button onClick={addCustomItem} className="bg-gray-800 text-white px-3 rounded-lg font-bold">+</button>
+                        <div className="flex gap-2 mb-2">
+                            <input type="date" className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={newCustomDate} onChange={e => setNewCustomDate(e.target.value)} />
+                            <input type="number" placeholder="Price $" className="w-1/2 p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={newCustomPrice} onChange={e => setNewCustomPrice(e.target.value)} />
                         </div>
+                        <button onClick={addCustomItem} className="w-full bg-gray-800 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                     </div>
+
+                    {/* NEW DELETE SESSION PANEL */}
+                    {invoiceBookings.length > 0 && (
+                        <div className="border-t border-gray-100 pt-4">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Manage Sessions</label>
+                            <div className="space-y-2 max-h-32 overflow-y-auto">
+                                {invoiceBookings.map(b => {
+                                    const d = b.slot_key.split('|')[0].split('-').reverse().join('/');
+                                    return (
+                                        <div key={b.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                                            <span className="text-gray-700">{d}</span>
+                                            <button onClick={() => removePTBooking(b)} className="text-red-500 hover:text-red-700 font-bold" title="Delete and Refund">✕</button>
+                                        </div>
+                                    )
+                                })}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
                         {/* EMAIL BUTTON */}
