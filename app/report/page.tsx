@@ -33,7 +33,11 @@ export default function PTReportDashboard() {
   const [customItems, setCustomItems] = useState<{desc: string, date: string, price: number}[]>([]);
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomPrice, setNewCustomPrice] = useState("");
-  const [newCustomDate, setNewCustomDate] = useState(""); // NEW: Custom Date State
+  const [newCustomDate, setNewCustomDate] = useState("");
+  
+  // SEQUENTIAL INVOICE NUMBERING
+  const [invoiceNumber, setInvoiceNumber] = useState<number>(0);
+  const [hasIncremented, setHasIncremented] = useState<boolean>(false);
 
   async function loadReportData() {
     setLoading(true);
@@ -48,31 +52,34 @@ export default function PTReportDashboard() {
 
   useEffect(() => { 
       loadReportData(); 
-      setNewCustomDate(new Date().toISOString().split('T')[0]); // Default to today
+      setNewCustomDate(new Date().toISOString().split('T')[0]); 
   }, []);
 
   async function openInvoice(client: Client) {
     setLoading(true);
     const { data } = await supabase.from('bookings').select('*').eq('client_id', client.id).eq('processed', true).neq('paid', true).order('slot_key', { ascending: true });
     if (data) setInvoiceBookings(data);
+    
+    // Fetch Next Invoice Number
+    setHasIncremented(false);
+    const { data: settingsData } = await supabase.from('settings').select('value').eq('id', 'next_invoice').single();
+    setInvoiceNumber(settingsData ? settingsData.value : 205);
+
     setInvoiceClient(client);
     setUnitPrice(client.type === 'intro' ? 50 : 75);
     setCustomItems([]);
-    setNewCustomDate(new Date().toISOString().split('T')[0]); // Reset to today when opening
+    setNewCustomDate(new Date().toISOString().split('T')[0]); 
     setLoading(false);
   }
 
   function addCustomItem() {
       if (!newCustomDesc || !newCustomPrice || !newCustomDate) return;
-      
-      // Format the YYYY-MM-DD to DD/MM/YYYY for the invoice
       const [y, m, d] = newCustomDate.split('-');
       const displayDate = `${d}/${m}/${y}`;
-
       setCustomItems([...customItems, { desc: newCustomDesc, date: displayDate, price: parseFloat(newCustomPrice) }]);
       setNewCustomDesc("");
       setNewCustomPrice("");
-      setNewCustomDate(new Date().toISOString().split('T')[0]); // Reset to today
+      setNewCustomDate(new Date().toISOString().split('T')[0]); 
   }
 
   async function markInvoicePaid(clientId: string, clientName: string) {
@@ -83,62 +90,58 @@ export default function PTReportDashboard() {
       await loadReportData(); 
   }
 
-  // --- NEW DELETE SESSION FUNCTION ---
   async function removePTBooking(booking: Booking) {
       if (!window.confirm("Remove this session from the invoice and refund 1 credit to the client?")) return;
-      
-      // 1. Delete from Database
       await supabase.from('bookings').delete().eq('id', booking.id);
-      
-      // 2. Refund 1 session
       const newBalance = invoiceClient!.sessions_remaining + 1;
       await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', invoiceClient!.id);
-      
-      // 3. Update UI instantly
       setInvoiceBookings(prev => prev.filter(b => b.id !== booking.id));
       setInvoiceClient({ ...invoiceClient!, sessions_remaining: newBalance });
       loadReportData(); 
   }
 
-  // --- TEXT MESSAGE GENERATOR ---
+  // Automatically increment the invoice number in the database so it's ready for the next one
+  async function markInvoiceAsIssued() {
+      if (!hasIncremented && invoiceNumber > 0) {
+          setHasIncremented(true);
+          await supabase.from('settings').upsert({ id: 'next_invoice', value: invoiceNumber + 1 });
+      }
+  }
+
   function sendTextInvoice() {
       if (!invoiceClient || !invoiceClient.phone) {
           alert("No phone number found for this client. Please add it in Supabase!");
           return;
       }
-      
+      markInvoiceAsIssued();
       const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
       const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
       const firstName = safeName.split(' ')[0]; 
-      
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
-      
       window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
   }
 
-  // --- AUTOMATED EMAIL GENERATOR ---
   async function sendEmailInvoice() {
       if (!invoiceClient) return;
-      
+      markInvoiceAsIssued();
       const targetEmail = invoiceClient.email || "protraininglab84@gmail.com";
       const displayName = invoiceClient.billing_name || invoiceClient.name;
-      
       setIsSendingEmail(true);
 
       const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #16202e;">
             <h1 style="color: #f05a28; margin-bottom: 5px;">Pro Training Lab</h1>
-            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 20px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
+            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 15px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
             
             <p>Hi <strong>${displayName}</strong>,</p>
             <p>Thank you for your hard work! Here is your latest invoice for <strong>$${totalDue.toFixed(2)}</strong>.</p>
             
-            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px;">
+            <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
                 <thead>
                     <tr style="border-bottom: 2px solid #f05a28; text-align: left;">
-                        <th style="padding: 8px 0;">Description</th>
-                        <th style="padding: 8px 0;">Date</th>
-                        <th style="padding: 8px 0; text-align: right;">Cost</th>
+                        <th style="padding: 4px 0;">Description</th>
+                        <th style="padding: 4px 0;">Date</th>
+                        <th style="padding: 4px 0; text-align: right;">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -147,32 +150,31 @@ export default function PTReportDashboard() {
                         const [y, m, d] = datePart.split('-');
                         return `
                         <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 8px 0;">${invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
-                            <td style="padding: 8px 0;">${d}/${m}/${y}</td>
-                            <td style="padding: 8px 0; text-align: right;">$${unitPrice.toFixed(2)}</td>
+                            <td style="padding: 4px 0; font-size: 14px;">${invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
+                            <td style="padding: 4px 0; font-size: 14px;">${d}/${m}/${y}</td>
+                            <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${unitPrice.toFixed(2)}</td>
                         </tr>`;
                     }).join('')}
                     ${customItems.map(item => `
                         <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 8px 0;">${item.desc}</td>
-                            <td style="padding: 8px 0;">${item.date}</td>
-                            <td style="padding: 8px 0; text-align: right;">$${item.price.toFixed(2)}</td>
+                            <td style="padding: 4px 0; font-size: 14px;">${item.desc}</td>
+                            <td style="padding: 4px 0; font-size: 14px;">${item.date}</td>
+                            <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${item.price.toFixed(2)}</td>
                         </tr>
                     `).join('')}
                 </tbody>
             </table>
 
-            <h3 style="text-align: right;">Total Due: <span style="color: #f05a28;">$${totalDue.toFixed(2)}</span></h3>
+            <h3 style="text-align: right; margin-top: 10px;">Total Due: <span style="color: #f05a28;">$${totalDue.toFixed(2)}</span></h3>
             
-            <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin-top: 30px;">
-                <h4 style="margin-top: 0;">Payment Details</h4>
-                <p style="margin: 5px 0;"><strong>Name:</strong> Luca Tonetti</p>
-                <p style="margin: 5px 0;"><strong>BSB:</strong> 923100</p>
-                <p style="margin: 5px 0;"><strong>Account:</strong> 301182182</p>
-                <p style="font-size: 12px; color: #666; margin-top: 15px;">Please make payment within 7 days. Thank you!</p>
+            <div style="background-color: #f3f4f6; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                <h4 style="margin-top: 0; margin-bottom: 8px;">Payment Details</h4>
+                <p style="margin: 2px 0; font-size: 13px;"><strong>Name:</strong> Luca Tonetti</p>
+                <p style="margin: 2px 0; font-size: 13px;"><strong>BSB:</strong> 923100</p>
+                <p style="margin: 2px 0; font-size: 13px;"><strong>Account:</strong> 301182182</p>
+                <p style="font-size: 11px; color: #666; margin-top: 10px;">Please make payment within 7 days. Thank you!</p>
             </div>
-            
-            <p style="font-size: 11px; color: #9ca3af; text-align: center; margin-top: 30px;">This email serves as your official tax invoice.</p>
+            <p style="font-size: 10px; color: #9ca3af; text-align: center; margin-top: 20px;">This email serves as your official tax invoice.</p>
         </div>
       `;
 
@@ -180,21 +182,11 @@ export default function PTReportDashboard() {
           const response = await fetch('/api/email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  emailTo: targetEmail,
-                  clientName: displayName,
-                  invoiceNumber: invoiceNumber,
-                  totalDue: totalDue,
-                  htmlBody: htmlBody
-              })
+              body: JSON.stringify({ emailTo: targetEmail, clientName: displayName, invoiceNumber, totalDue, htmlBody })
           });
-          
           const result = await response.json();
-          if (result.success) {
-              alert(`✅ Invoice successfully emailed to ${targetEmail}!`);
-          } else {
-              alert(`❌ Email failed: ${result.error}`);
-          }
+          if (result.success) alert(`✅ Invoice successfully emailed to ${targetEmail}!`);
+          else alert(`❌ Email failed: ${result.error}`);
       } catch (err) {
           alert("Network error sending email.");
       }
@@ -224,23 +216,21 @@ export default function PTReportDashboard() {
   const customTotal = customItems.reduce((sum, item) => sum + item.price, 0);
   const totalDue = invoiceSubtotal + customTotal;
   const todayStr = new Date().toLocaleDateString('en-AU');
-  const invoiceNumber = invoiceClient ? Math.floor(Math.random() * 900) + 100 : "000";
   
-  // Smart Billing Info
   const displayName = invoiceClient?.billing_name || invoiceClient?.name;
   const displayEmail = invoiceClient?.email || "No email on file";
 
   return (
     <main className="min-h-screen p-4 md:p-8 font-sans" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
       
+      {/* IMPROVED COMPACT PRINT MARGINS */}
       <style dangerouslySetInnerHTML={{__html: `
-        @page { margin: 0mm; } 
         @media print {
+            @page { margin: 15mm; size: A4 portrait; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
             body * { visibility: hidden; }
+            #printable-invoice-container { position: absolute; left: 0; top: 0; width: 100%; }
             #printable-invoice, #printable-invoice * { visibility: visible; }
-            #printable-invoice { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 50px !important; box-sizing: border-box; }
-            .fixed { position: absolute !important; }
-            .overflow-y-auto { overflow: visible !important; }
             .no-print { display: none !important; }
             .avoid-break { break-inside: avoid; page-break-inside: avoid; }
         }
@@ -326,7 +316,7 @@ export default function PTReportDashboard() {
             <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
                 
                 {/* INVOICE CONTROLS */}
-                <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print">
+                <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print shrink-0">
                     <div>
                         <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Unit Price ($)</label>
@@ -343,7 +333,6 @@ export default function PTReportDashboard() {
                         <button onClick={addCustomItem} className="w-full bg-gray-800 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                     </div>
 
-                    {/* NEW DELETE SESSION PANEL */}
                     {invoiceBookings.length > 0 && (
                         <div className="border-t border-gray-100 pt-4">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Manage Sessions</label>
@@ -362,18 +351,14 @@ export default function PTReportDashboard() {
                     )}
 
                     <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
-                        {/* EMAIL BUTTON */}
                         <button onClick={sendEmailInvoice} disabled={isSendingEmail} className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl shadow-md hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
                             <span>✉️</span> {isSendingEmail ? "Sending..." : "Email Invoice"}
                         </button>
-                        
-                        {/* TEXT BUTTON */}
                         <button onClick={sendTextInvoice} className="w-full py-3 bg-green-500 text-white font-bold rounded-xl shadow-md hover:bg-green-600 transition-colors flex justify-center items-center gap-2">
                             <span>💬</span> Text Client
                         </button>
-
-                        {/* PDF BUTTON */}
                         <button onClick={() => {
+                            markInvoiceAsIssued();
                             const originalTitle = document.title;
                             document.title = `Invoice_${invoiceNumber}_${displayName}`;
                             window.print();
@@ -381,25 +366,24 @@ export default function PTReportDashboard() {
                         }} className="w-full py-3 bg-[#0160C9] text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex justify-center items-center gap-2">
                             <span>📄</span> Save PDF / Share
                         </button>
-                        
                         <button onClick={() => setInvoiceClient(null)} className="w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
                             Close
                         </button>
                     </div>
                 </div>
 
-                {/* ACTUAL PRINTABLE INVOICE */}
-                <div className="flex-1 p-4 md:p-8 bg-gray-100 overflow-y-auto">
-                    <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-8 md:p-12 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
+                {/* COMPACT PRINTABLE INVOICE */}
+                <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
+                    <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                         
-                        <div className="flex justify-between items-start mb-6">
-                            <div className="w-24 h-24 relative overflow-hidden rounded-full"><Image src="/logo.jpg" alt="PTLab Logo" fill className="object-cover" /></div>
-                            <h1 className="text-4xl font-black mt-4 tracking-tight">Pro Training Lab</h1>
+                        <div className="flex justify-between items-start mb-4">
+                            <div className="w-16 h-16 relative overflow-hidden rounded-full"><Image src="/logo.jpg" alt="PTLab Logo" fill className="object-cover" /></div>
+                            <h1 className="text-3xl font-black mt-2 tracking-tight">Pro Training Lab</h1>
                         </div>
 
-                        <div className="text-center mb-10 text-xs font-medium">ABN: 18 812 166 780 &nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</div>
+                        <div className="text-center mb-4 text-xs font-medium text-gray-600">ABN: 18 812 166 780 &nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</div>
 
-                        <div className="grid grid-cols-2 gap-y-4 mb-8">
+                        <div className="grid grid-cols-2 gap-y-1.5 mb-4 text-sm">
                             <div className="font-bold">Attention to</div>
                             <div className="flex justify-between">
                                 <div>
@@ -407,7 +391,7 @@ export default function PTReportDashboard() {
                                     <div className="text-xs text-gray-500">{displayEmail}</div>
                                     {invoiceClient.billing_address && <div className="text-xs text-gray-500">{invoiceClient.billing_address}</div>}
                                 </div>
-                                <div><span className="font-bold mr-4">Invoice Number</span>{invoiceNumber}</div>
+                                <div><span className="font-bold mr-3">Invoice Number</span>{invoiceNumber}</div>
                             </div>
 
                             <div className="font-bold">Date</div><div>{todayStr}</div>
@@ -415,58 +399,59 @@ export default function PTReportDashboard() {
                             <div className="font-bold">Invoice Terms</div><div>Within 7 days of invoice date</div>
                         </div>
 
-                        <div className="border-t-2 border-[#f05a28] my-6"></div>
+                        <div className="border-t-2 border-[#f05a28] my-3"></div>
 
-                        <table className="w-full text-left mb-8">
+                        <table className="w-full text-left mb-4">
                             <thead>
-                                <tr className="font-bold">
-                                    <th className="pb-3 text-center">Description</th>
-                                    <th className="pb-3 text-center">Date</th>
-                                    <th className="pb-3 text-center">Quantity</th>
-                                    <th className="pb-3 text-center">Unit Price</th>
-                                    <th className="pb-3 text-right">Cost</th>
+                                <tr className="font-bold border-b border-gray-200">
+                                    <th className="pb-2 text-left">Description</th>
+                                    <th className="pb-2 text-center">Date</th>
+                                    <th className="pb-2 text-center">Quantity</th>
+                                    <th className="pb-2 text-center">Unit Price</th>
+                                    <th className="pb-2 text-right">Cost</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="text-sm">
                                 {invoiceBookings.map((booking, i) => {
                                     const datePart = booking.slot_key.split('|')[0];
                                     const [y, m, d] = datePart.split('-');
                                     return (
-                                        <tr key={booking.id}>
-                                            <td className="py-1 text-center">{invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
-                                            <td className="py-1 text-center">{`${d}/${m}/${y}`}</td>
-                                            <td className="py-1 text-center">1</td>
-                                            <td className="py-1 text-center">${unitPrice.toFixed(2)}</td>
-                                            <td className="py-1 text-right">${unitPrice.toFixed(2)}</td>
+                                        <tr key={booking.id} className="border-b border-gray-50">
+                                            <td className="py-1.5 text-left">{invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
+                                            <td className="py-1.5 text-center text-gray-600">{`${d}/${m}/${y}`}</td>
+                                            <td className="py-1.5 text-center">1</td>
+                                            <td className="py-1.5 text-center">${unitPrice.toFixed(2)}</td>
+                                            <td className="py-1.5 text-right">${unitPrice.toFixed(2)}</td>
                                         </tr>
                                     );
                                 })}
                                 {customItems.map((item, i) => (
-                                    <tr key={i}>
-                                        <td className="py-1 text-center">{item.desc}</td>
-                                        <td className="py-1 text-center">{item.date}</td>
-                                        <td className="py-1 text-center">1</td>
-                                        <td className="py-1 text-center">${item.price.toFixed(2)}</td>
-                                        <td className="py-1 text-right">${item.price.toFixed(2)}</td>
+                                    <tr key={i} className="border-b border-gray-50">
+                                        <td className="py-1.5 text-left">{item.desc}</td>
+                                        <td className="py-1.5 text-center text-gray-600">{item.date}</td>
+                                        <td className="py-1.5 text-center">1</td>
+                                        <td className="py-1.5 text-center">${item.price.toFixed(2)}</td>
+                                        <td className="py-1.5 text-right">${item.price.toFixed(2)}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
 
-                        <div className="flex justify-end pt-4 font-bold text-base mb-12 avoid-break">
-                            <div className="w-1/2 flex justify-between"><span>Total Due</span><span>${totalDue.toFixed(2)}</span></div>
+                        <div className="flex justify-end pt-2 font-bold text-base mb-6 avoid-break">
+                            <div className="w-1/2 flex justify-between"><span>Total Due</span><span className="text-[#f05a28]">${totalDue.toFixed(2)}</span></div>
                         </div>
 
-                        <div className="avoid-break pt-4 border-t-2 border-[#f05a28]">
-                            <div className="space-y-1 mt-4 text-sm">
-                                <div className="font-bold">Name: Luca Tonetti</div>
-                                <div className="font-bold">BSB: 923100</div>
-                                <div className="font-bold">Account Number: 301182182</div>
-                                <div className="pt-4 pb-4">Please make payment within 7 days. If you have any questions, feel free to reach out.</div>
-                                <div className="font-bold pb-2">Contact Information</div>
-                                <div className="font-bold">Email: <a href="mailto:luca.toniz84@gmail.com" className="underline">luca.toniz84@gmail.com</a></div>
-                                <div className="font-bold">Phone: 0416 058 046</div>
-                                <div className="pt-6">Thank you for choosing my services. It was a pleasure working with you!</div>
+                        <div className="avoid-break pt-4 border-t-2 border-[#f05a28] bg-gray-50 px-4 rounded-lg">
+                            <div className="space-y-1 py-3 text-sm">
+                                <div className="font-bold text-base mb-2">Payment Details</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div><span className="font-bold">Name:</span> Luca Tonetti</div>
+                                    <div><span className="font-bold">Email:</span> luca.toniz84@gmail.com</div>
+                                    <div><span className="font-bold">BSB:</span> 923100</div>
+                                    <div><span className="font-bold">Phone:</span> 0416 058 046</div>
+                                    <div><span className="font-bold">Account:</span> 301182182</div>
+                                </div>
+                                <div className="pt-3 mt-3 border-t border-gray-200 text-xs text-gray-600 italic text-center">Please make payment within 7 days. Thank you for choosing my services!</div>
                             </div>
                         </div>
 
