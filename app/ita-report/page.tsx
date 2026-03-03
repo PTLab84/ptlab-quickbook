@@ -305,8 +305,8 @@ export default function ItaReportDashboard() {
 
         {/* --- INVOICE MODAL --- */}
         {invoiceClient && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm">
-                <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm" onClick={() => setInvoiceClient(null)}>
+                <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300" onClick={(e) => e.stopPropagation()}>
                     
                     {/* INVOICE CONTROLS */}
                     <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print shrink-0">
@@ -345,9 +345,11 @@ export default function ItaReportDashboard() {
                             <button onClick={sendEmailInvoice} disabled={isSendingEmail} className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl shadow-md hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
                                 <span>✉️</span> {isSendingEmail ? "Sending..." : "Email Invoice"}
                             </button>
+
                             <button onClick={sendTextInvoice} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex justify-center items-center gap-2">
                                 <span>💬</span> Text Client
                             </button>
+
                             <button onClick={() => {
                                 markInvoiceAsIssued();
                                 const originalTitle = document.title;
@@ -357,6 +359,7 @@ export default function ItaReportDashboard() {
                             }} className="w-full py-3 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex justify-center items-center gap-2">
                                 <span>📄</span> Save PDF / Share
                             </button>
+                            
                             <button onClick={() => setInvoiceClient(null)} className="w-full py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors">
                                 Close
                             </button>

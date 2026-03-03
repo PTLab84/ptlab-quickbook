@@ -223,7 +223,6 @@ export default function PTReportDashboard() {
   return (
     <main className="min-h-screen p-4 md:p-8 font-sans" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
       
-      {/* IMPROVED COMPACT PRINT MARGINS */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
             @page { margin: 15mm; size: A4 portrait; }
@@ -312,8 +311,8 @@ export default function PTReportDashboard() {
 
       {/* --- INVOICE MODAL --- */}
       {invoiceClient && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm">
-            <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm" onClick={() => setInvoiceClient(null)}>
+            <div className="bg-gray-100 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col md:flex-row overflow-hidden border border-gray-300" onClick={(e) => e.stopPropagation()}>
                 
                 {/* INVOICE CONTROLS */}
                 <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print shrink-0">
