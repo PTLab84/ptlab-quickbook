@@ -17,6 +17,7 @@ type Client = {
     email?: string;
     phone?: string;
     billing_address?: string;
+    location?: string; // NEW LOCATION
 };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
 
@@ -25,6 +26,10 @@ export default function PTReportDashboard() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+
+  // Gym Rent State
+  const [rentRate, setRentRate] = useState<number>(15); 
+  const [rentMonthOffset, setRentMonthOffset] = useState<number>(0); 
 
   // Invoice State
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
@@ -35,7 +40,6 @@ export default function PTReportDashboard() {
   const [newCustomPrice, setNewCustomPrice] = useState("");
   const [newCustomDate, setNewCustomDate] = useState("");
   
-  // SEQUENTIAL INVOICE NUMBERING
   const [invoiceNumber, setInvoiceNumber] = useState<number>(0);
   const [hasIncremented, setHasIncremented] = useState<boolean>(false);
 
@@ -60,7 +64,6 @@ export default function PTReportDashboard() {
     const { data } = await supabase.from('bookings').select('*').eq('client_id', client.id).eq('processed', true).neq('paid', true).order('slot_key', { ascending: true });
     if (data) setInvoiceBookings(data);
     
-    // Fetch Next Invoice Number
     setHasIncremented(false);
     const { data: settingsData } = await supabase.from('settings').select('value').eq('id', 'next_invoice').single();
     setInvoiceNumber(settingsData ? settingsData.value : 205);
@@ -100,7 +103,6 @@ export default function PTReportDashboard() {
       loadReportData(); 
   }
 
-  // Automatically increment the invoice number in the database so it's ready for the next one
   async function markInvoiceAsIssued() {
       if (!hasIncremented && invoiceNumber > 0) {
           setHasIncremented(true);
@@ -205,13 +207,31 @@ export default function PTReportDashboard() {
   const totalAppDelivered = bookings.filter(b => ptClients.find(c => c.id === b.client_id)).length;
   const totalSessionsDelivered = totalHistoricalDelivered + totalAppDelivered;
 
+  // --- GYM RENT CALCULATOR (LOCATION-BASED) ---
+  const targetDate = new Date();
+  targetDate.setMonth(targetDate.getMonth() - rentMonthOffset);
+  const targetMonth = targetDate.getMonth() + 1;
+  const targetYear = targetDate.getFullYear();
+
+  const gymSessionsTargetMonth = bookings.filter(b => {
+      const client = clients.find(c => c.id === b.client_id);
+      // ONLY checks if their location is AF in the database!
+      if (!client || client.location !== 'AF') return false; 
+      
+      const datePart = b.slot_key.split('|')[0];
+      const [y, m, d] = datePart.split('-');
+      return parseInt(y) === targetYear && parseInt(m) === targetMonth;
+  }).length;
+
+  const totalRentOwed = gymSessionsTargetMonth * rentRate;
+
+
   function getRowStyle(balance: number) {
       if (balance > 0) return { text: "In Credit", badge: "bg-green-100 text-green-700", row: "border-b border-gray-50 hover:bg-gray-50" };
       if (balance < 0) return { text: "Owing", badge: "bg-red-100 text-red-700", row: "border-b border-red-100 bg-red-50 hover:bg-red-100/50" };
       return { text: "Up to Date", badge: "bg-gray-100 text-gray-600", row: "border-b border-gray-50 hover:bg-gray-50" };
   }
 
-  // Invoice Calculations
   const invoiceSubtotal = invoiceBookings.length * unitPrice;
   const customTotal = customItems.reduce((sum, item) => sum + item.price, 0);
   const totalDue = invoiceSubtotal + customTotal;
@@ -244,13 +264,33 @@ export default function PTReportDashboard() {
             <Link href="/"><button className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-white border border-gray-200 hover:bg-gray-50 text-[#16202e]">← Back to Calendar</button></Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Total PT Clients</div><div className="text-4xl font-black">{totalActiveClients}</div></div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Pre-Paid Sessions</div><div className="text-4xl font-black text-green-600">{totalSessionsRemaining}</div></div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">All-Time Sessions</div><div className="text-4xl font-black text-[#f05a28]">{totalSessionsDelivered}</div></div>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Total Clients</div><div className="text-4xl font-black">{totalActiveClients}</div></div>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Pre-Paid Sessions</div><div className="text-4xl font-black text-green-600">{totalSessionsRemaining}</div></div>
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">All-Time Sessions</div><div className="text-4xl font-black text-[#f05a28]">{totalSessionsDelivered}</div></div>
+            
+            {/* GYM RENT TRACKER */}
+            <div className="bg-indigo-50 p-6 rounded-2xl shadow-sm border border-indigo-100 flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute right-0 top-0 text-6xl opacity-10 pt-4 pr-2 pointer-events-none">🏋️‍♂️</div>
+                <div>
+                    <div className="flex justify-between items-center mb-2">
+                        <select value={rentMonthOffset} onChange={e => setRentMonthOffset(Number(e.target.value))} className="text-xs font-bold text-indigo-700 uppercase tracking-wider bg-transparent outline-none cursor-pointer border-b border-indigo-200 pb-0.5">
+                            <option value={0}>Rent (This Month)</option>
+                            <option value={1}>Rent (Last Month)</option>
+                        </select>
+                    </div>
+                    <div className="flex items-baseline gap-2">
+                        <div className="text-4xl font-black text-indigo-800">{gymSessionsTargetMonth}</div>
+                        <div className="text-sm font-bold text-indigo-400">sessions</div>
+                    </div>
+                </div>
+                <div className="mt-4 pt-3 border-t border-indigo-200/50 flex justify-between items-center">
+                    <div className="text-xs font-bold text-indigo-500">Rate: $<input type="number" className="w-8 bg-transparent border-b border-indigo-300 outline-none text-indigo-700" value={rentRate} onChange={e => setRentRate(Number(e.target.value))} /></div>
+                    <div className="font-bold text-indigo-700">Owed: ${totalRentOwed.toFixed(2)}</div>
+                </div>
+            </div>
         </div>
 
-        {/* REGULAR CLIENTS TABLE */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e]">
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center"><h2 className="text-lg font-bold">Regular Clients</h2><span className="text-xs font-bold px-2 py-1 bg-gray-200 rounded-full">{regularClients.length}</span></div>
             <div className="overflow-x-auto">
@@ -262,7 +302,10 @@ export default function PTReportDashboard() {
                             const style = getRowStyle(client.sessions_remaining);
                             return (
                                 <tr key={client.id} className={`transition-colors ${style.row}`}>
-                                    <td className="px-6 py-4 font-bold">{client.name}</td>
+                                    <td className="px-6 py-4 font-bold">
+                                        {client.name}
+                                        {client.location === 'AF' && <span className="ml-2 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">AF Gym</span>}
+                                    </td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${style.badge}`}>{style.text}</span></td>
                                     <td className="px-6 py-4 font-bold text-lg">{client.sessions_remaining}</td>
                                     <td className="px-6 py-4 text-center">
@@ -279,7 +322,6 @@ export default function PTReportDashboard() {
             </div>
         </div>
 
-        {/* INTRO CLIENTS TABLE */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e] border-t-4 border-t-orange-500 mt-8">
             <div className="px-6 py-4 border-b border-gray-100 bg-orange-50 flex justify-between items-center"><h2 className="text-lg font-bold text-orange-900">Intro Pack Clients</h2><span className="text-xs font-bold px-2 py-1 bg-orange-200 text-orange-900 rounded-full">{introClients.length}</span></div>
             <div className="overflow-x-auto">
@@ -291,7 +333,10 @@ export default function PTReportDashboard() {
                             const style = getRowStyle(client.sessions_remaining);
                             return (
                                 <tr key={client.id} className={`transition-colors ${style.row}`}>
-                                    <td className="px-6 py-4 font-bold">{client.name}</td>
+                                    <td className="px-6 py-4 font-bold">
+                                        {client.name}
+                                        {client.location === 'AF' && <span className="ml-2 text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">AF Gym</span>}
+                                    </td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${style.badge}`}>{style.text}</span></td>
                                     <td className="px-6 py-4 font-bold text-lg">{client.sessions_remaining}</td>
                                     <td className="px-6 py-4 text-center">

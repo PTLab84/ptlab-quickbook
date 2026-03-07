@@ -21,6 +21,7 @@ type Client = {
   sessions_remaining: number; 
   historical_attended: number;
   active?: boolean;
+  location?: string; // NEW: Location tracking
 };
 type SlotKey = string;
 type Booking = { id: string; slotKey: SlotKey; clientId: string; processed: boolean };
@@ -124,7 +125,8 @@ export default function PTLabScheduler() {
       const safeClients = clientData.map(c => ({
           ...c, 
           sessions_remaining: c.sessions_remaining || 0,
-          historical_attended: c.historical_attended || 0
+          historical_attended: c.historical_attended || 0,
+          location: c.location || 'PTLab'
       }));
       setClients(safeClients);
       if (safeClients.length > 0 && !activeClientId && !activeExtraActivity) {
@@ -360,6 +362,10 @@ export default function PTLabScheduler() {
     setShowPaymentMenu(null); 
     
     await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', clientId);
+    
+    if (sessionModifier > 0) {
+        alert(`✅ Success!\n\nAdded ${sessionModifier} ${client.type === 'ita_job' ? 'hours' : 'sessions'} for ${clientName}.\nNew Balance: ${newBalance}`);
+    }
   }
 
   async function setExactBalance(clientId: string, exactAmount: number) {
@@ -465,21 +471,21 @@ export default function PTLabScheduler() {
 
   async function addIntroClient() {
     if (!introName.trim()) return;
-    const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0, active: true }]).select().single();
+    const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
   }
 
   async function addRegularClient() {
     if (!regularName.trim()) return;
-    const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
+    const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
   }
 
   async function addItaClient() {
     if (!itaName.trim()) return;
-    const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
+    const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
   }
@@ -563,7 +569,6 @@ export default function PTLabScheduler() {
                                     <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
                                 </button>
 
-                                {/* THIS BUTTON NOW TRIGGERS THE FULL SCREEN MODAL */}
                                 <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
                             </div>
                             )
@@ -587,11 +592,15 @@ export default function PTLabScheduler() {
                             const isActive = c.id === activeClientId && !activeExtraActivity;
                             return (
                                 <div key={c.id} className="relative group shrink-0">
-                                    <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap"
+                                    <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+                                    
+                                    <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
                                         style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
                                         {c.name}
+                                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : c.sessions_remaining < 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{c.sessions_remaining}</span>
                                     </button>
-                                    <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
+
+                                    <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
                                 </div>
                             )
                         })}
@@ -725,7 +734,12 @@ export default function PTLabScheduler() {
                                 clientType = cObj?.type || "";
                                 isProcessed = regularBooking.processed;
                                 
-                                if (clientType === 'ita_job') {
+                                // THE NEW COLOR LOGIC OVERRIDE
+                                if (cObj?.location === 'AF') {
+                                    bg = "#7e22ce"; // Purple 700
+                                    color = "white";
+                                    blockBorder = "2px solid #a855f7"; // Purple 500
+                                } else if (clientType === 'ita_job') {
                                     bg = "#dcfce7";
                                     color = "#166534";
                                     blockBorder = "2px solid #86efac";
@@ -849,21 +863,25 @@ export default function PTLabScheduler() {
           </div>
         </div>
 
-        {/* NEW PAYMENT MENU MODAL */}
+        {/* SHARED PAYMENT MENU MODAL */}
         {showPaymentMenu && (() => {
             const client = clients.find(c => c.id === showPaymentMenu);
             if (!client) return null;
+            const isIta = client.type === 'ita_job';
+            
             return (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm">
-                    <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl animate-in zoom-in-95">
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm" onClick={() => setShowPaymentMenu(null)}>
+                    <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-between items-center mb-4">
                             <h2 className="text-2xl font-black text-[#16202e] truncate pr-2">{client.name}</h2>
-                            <span className={`px-3 py-1 rounded-full text-sm font-bold shrink-0 ${client.sessions_remaining <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
+                            <span className={`px-3 py-1 rounded-full text-sm font-bold shrink-0 ${client.sessions_remaining < 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>
                                 Bal: {client.sessions_remaining}
                             </span>
                         </div>
 
-                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Add Pre-Paid Sessions</div>
+                        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                            {isIta ? 'Log Paid Hours' : 'Add Pre-Paid Sessions'}
+                        </div>
                         <div className="grid grid-cols-4 gap-2 mb-6">
                             {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(num => (
                                 <button key={num} onClick={() => logPayment(client.id, num, client.name)} className="py-3 bg-green-50 hover:bg-green-100 border border-green-200 text-green-700 font-bold rounded-xl shadow-sm text-sm transition-colors">+{num}</button>
