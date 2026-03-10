@@ -17,9 +17,19 @@ type Client = {
     email?: string;
     phone?: string;
     billing_address?: string;
-    location?: string; // NEW LOCATION
+    location?: string;
 };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
+
+// NEW: Universal Line Item Type
+type LineItem = {
+    id: string;
+    bookingId?: string;
+    desc: string;
+    date: string;
+    qty: number;
+    rate: number;
+};
 
 export default function PTReportDashboard() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -27,15 +37,14 @@ export default function PTReportDashboard() {
   const [loading, setLoading] = useState(true);
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
-  // Gym Rent State
   const [rentRate, setRentRate] = useState<number>(15); 
   const [rentMonthOffset, setRentMonthOffset] = useState<number>(0); 
 
   // Invoice State
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
-  const [invoiceBookings, setInvoiceBookings] = useState<Booking[]>([]);
+  const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]);
   const [unitPrice, setUnitPrice] = useState<number>(75);
-  const [customItems, setCustomItems] = useState<{desc: string, date: string, price: number}[]>([]);
+  
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomPrice, setNewCustomPrice] = useState("");
   const [newCustomDate, setNewCustomDate] = useState("");
@@ -62,27 +71,79 @@ export default function PTReportDashboard() {
   async function openInvoice(client: Client) {
     setLoading(true);
     const { data } = await supabase.from('bookings').select('*').eq('client_id', client.id).eq('processed', true).neq('paid', true).order('slot_key', { ascending: true });
-    if (data) setInvoiceBookings(data);
     
     setHasIncremented(false);
     const { data: settingsData } = await supabase.from('settings').select('value').eq('id', 'next_invoice').single();
     setInvoiceNumber(settingsData ? settingsData.value : 205);
 
     setInvoiceClient(client);
-    setUnitPrice(client.type === 'intro' ? 50 : 75);
-    setCustomItems([]);
+    const defaultRate = client.type === 'intro' ? 50 : 75;
+    setUnitPrice(defaultRate);
+    
+    // BUILD INITIAL EDITABLE LINE ITEMS
+    const initialLines: LineItem[] = (data || []).map((b, i) => {
+        const datePart = b.slot_key.split('|')[0];
+        const [y, m, d] = datePart.split('-');
+        return {
+            id: `pt-${b.id}`,
+            bookingId: b.id,
+            desc: client.type === 'intro' ? 'Intro Pack Training' : 'Personal Training',
+            date: `${d}/${m}/${y}`,
+            qty: 1,
+            rate: defaultRate
+        };
+    });
+
+    setInvoiceLines(initialLines);
     setNewCustomDate(new Date().toISOString().split('T')[0]); 
     setLoading(false);
+  }
+
+  // --- EDITABLE INVOICE FUNCTIONS ---
+  function updateLine(id: string, field: keyof LineItem, value: any) {
+      setInvoiceLines(prev => prev.map(line => line.id === id ? { ...line, [field]: value } : line));
+  }
+
+  async function removeLine(lineId: string, bookingId?: string) {
+      if (bookingId) {
+          if (!window.confirm("Remove this session from the invoice and refund 1 credit to the client?")) return;
+          await supabase.from('bookings').delete().eq('id', bookingId);
+          const newBalance = invoiceClient!.sessions_remaining + 1;
+          await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', invoiceClient!.id);
+          setInvoiceClient({ ...invoiceClient!, sessions_remaining: newBalance });
+          loadReportData();
+      }
+      setInvoiceLines(prev => prev.filter(l => l.id !== lineId));
+  }
+
+  function handleUnitPriceChange(newRate: number) {
+      setUnitPrice(newRate);
+      setInvoiceLines(prev => prev.map(line => line.id.startsWith('pt-') ? { ...line, rate: newRate } : line));
   }
 
   function addCustomItem() {
       if (!newCustomDesc || !newCustomPrice || !newCustomDate) return;
       const [y, m, d] = newCustomDate.split('-');
       const displayDate = `${d}/${m}/${y}`;
-      setCustomItems([...customItems, { desc: newCustomDesc, date: displayDate, price: parseFloat(newCustomPrice) }]);
-      setNewCustomDesc("");
-      setNewCustomPrice("");
+      setInvoiceLines([...invoiceLines, { id: `custom-${Date.now()}`, desc: newCustomDesc, date: displayDate, qty: 1, rate: parseFloat(newCustomPrice) }]);
+      setNewCustomDesc(""); setNewCustomPrice("");
       setNewCustomDate(new Date().toISOString().split('T')[0]); 
+  }
+
+  // --- BILLING ADJUSTMENT (ROUNDING) ---
+  function addAutoRounding() {
+      const currentTotal = invoiceLines.reduce((sum, line) => sum + (line.qty * line.rate), 0);
+      const remainder = currentTotal % 10;
+      if (remainder !== 0) {
+          setInvoiceLines(prev => [...prev, { id: `adj-${Date.now()}`, desc: 'Billing Adjustment', date: new Date().toLocaleDateString('en-AU'), qty: 1, rate: -remainder }]);
+      }
+  }
+
+  function addManualAdjustment() {
+      const amt = parseFloat(prompt("Enter discount amount (e.g. 15):") || "0");
+      if (amt > 0) {
+          setInvoiceLines(prev => [...prev, { id: `adj-${Date.now()}`, desc: 'Billing Adjustment', date: new Date().toLocaleDateString('en-AU'), qty: 1, rate: -Math.abs(amt) }]);
+      }
   }
 
   async function markInvoicePaid(clientId: string, clientName: string) {
@@ -93,16 +154,6 @@ export default function PTReportDashboard() {
       await loadReportData(); 
   }
 
-  async function removePTBooking(booking: Booking) {
-      if (!window.confirm("Remove this session from the invoice and refund 1 credit to the client?")) return;
-      await supabase.from('bookings').delete().eq('id', booking.id);
-      const newBalance = invoiceClient!.sessions_remaining + 1;
-      await supabase.from('clients').update({ sessions_remaining: newBalance }).eq('id', invoiceClient!.id);
-      setInvoiceBookings(prev => prev.filter(b => b.id !== booking.id));
-      setInvoiceClient({ ...invoiceClient!, sessions_remaining: newBalance });
-      loadReportData(); 
-  }
-
   async function markInvoiceAsIssued() {
       if (!hasIncremented && invoiceNumber > 0) {
           setHasIncremented(true);
@@ -110,15 +161,22 @@ export default function PTReportDashboard() {
       }
   }
 
+  // ==========================================
+  // INVOICE CALCULATIONS & SAFE VARIABLES
+  // ==========================================
+  const totalDue = invoiceLines.reduce((sum, item) => sum + (item.qty * item.rate), 0);
+  const todayStr = new Date().toLocaleDateString('en-AU');
+  const displayName = String(invoiceClient?.billing_name || invoiceClient?.name || "Client");
+  const displayEmail = String(invoiceClient?.email || "No email on file");
+
+  // ==========================================
+  // ACTION BUTTONS
+  // ==========================================
   function sendTextInvoice() {
-      if (!invoiceClient || !invoiceClient.phone) {
-          alert("No phone number found for this client. Please add it in Supabase!");
-          return;
-      }
+      if (!invoiceClient || !invoiceClient.phone) { alert("No phone number found for this client!"); return; }
       markInvoiceAsIssued();
-      const cleanPhone = invoiceClient.phone.replace(/\s+/g, '');
-      const safeName = invoiceClient.billing_name || invoiceClient.name || "Client";
-      const firstName = safeName.split(' ')[0]; 
+      const cleanPhone = String(invoiceClient.phone).replace(/\s+/g, '');
+      const firstName = displayName.split(' ')[0]; 
       const msg = `Hi ${firstName}, just letting you know your latest invoice is ready. Total due: $${totalDue.toFixed(2)}. Let me know if you need the PDF sent through. Thanks!`;
       window.location.href = `sms:${cleanPhone}?body=${encodeURIComponent(msg)}`;
   }
@@ -127,7 +185,6 @@ export default function PTReportDashboard() {
       if (!invoiceClient) return;
       markInvoiceAsIssued();
       const targetEmail = invoiceClient.email || "protraininglab84@gmail.com";
-      const displayName = invoiceClient.billing_name || invoiceClient.name;
       setIsSendingEmail(true);
 
       const htmlBody = `
@@ -143,27 +200,20 @@ export default function PTReportDashboard() {
                     <tr style="border-bottom: 2px solid #f05a28; text-align: left;">
                         <th style="padding: 4px 0;">Description</th>
                         <th style="padding: 4px 0;">Date</th>
+                        <th style="padding: 4px 0; text-align: center;">Qty</th>
+                        <th style="padding: 4px 0; text-align: center;">Rate</th>
                         <th style="padding: 4px 0; text-align: right;">Cost</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${invoiceBookings.map(b => {
-                        const datePart = b.slot_key.split('|')[0];
-                        const [y, m, d] = datePart.split('-');
-                        return `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 4px 0; font-size: 14px;">${invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
-                            <td style="padding: 4px 0; font-size: 14px;">${d}/${m}/${y}</td>
-                            <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${unitPrice.toFixed(2)}</td>
-                        </tr>`;
-                    }).join('')}
-                    ${customItems.map(item => `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 4px 0; font-size: 14px;">${item.desc}</td>
-                            <td style="padding: 4px 0; font-size: 14px;">${item.date}</td>
-                            <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${item.price.toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
+                    ${invoiceLines.map(line => `
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 4px 0; font-size: 14px;">${line.desc}</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #666;">${line.date}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">${line.qty}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">$${line.rate.toFixed(2)}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${(line.qty * line.rate).toFixed(2)}</td>
+                    </tr>`).join('')}
                 </tbody>
             </table>
 
@@ -204,10 +254,7 @@ export default function PTReportDashboard() {
   const totalActiveClients = ptClients.length;
   const totalSessionsRemaining = ptClients.reduce((sum, c) => sum + Math.max(0, c.sessions_remaining), 0);
   const totalHistoricalDelivered = ptClients.reduce((sum, c) => sum + c.historical_attended, 0);
-  const totalAppDelivered = bookings.filter(b => ptClients.find(c => c.id === b.client_id)).length;
-  const totalSessionsDelivered = totalHistoricalDelivered + totalAppDelivered;
 
-  // --- GYM RENT CALCULATOR (LOCATION-BASED) ---
   const targetDate = new Date();
   targetDate.setMonth(targetDate.getMonth() - rentMonthOffset);
   const targetMonth = targetDate.getMonth() + 1;
@@ -215,9 +262,7 @@ export default function PTReportDashboard() {
 
   const gymSessionsTargetMonth = bookings.filter(b => {
       const client = clients.find(c => c.id === b.client_id);
-      // ONLY checks if their location is AF in the database!
       if (!client || client.location !== 'AF') return false; 
-      
       const datePart = b.slot_key.split('|')[0];
       const [y, m, d] = datePart.split('-');
       return parseInt(y) === targetYear && parseInt(m) === targetMonth;
@@ -225,25 +270,17 @@ export default function PTReportDashboard() {
 
   const totalRentOwed = gymSessionsTargetMonth * rentRate;
 
-
   function getRowStyle(balance: number) {
       if (balance > 0) return { text: "In Credit", badge: "bg-green-100 text-green-700", row: "border-b border-gray-50 hover:bg-gray-50" };
       if (balance < 0) return { text: "Owing", badge: "bg-red-100 text-red-700", row: "border-b border-red-100 bg-red-50 hover:bg-red-100/50" };
       return { text: "Up to Date", badge: "bg-gray-100 text-gray-600", row: "border-b border-gray-50 hover:bg-gray-50" };
   }
 
-  const invoiceSubtotal = invoiceBookings.length * unitPrice;
-  const customTotal = customItems.reduce((sum, item) => sum + item.price, 0);
-  const totalDue = invoiceSubtotal + customTotal;
-  const todayStr = new Date().toLocaleDateString('en-AU');
-  
-  const displayName = invoiceClient?.billing_name || invoiceClient?.name;
-  const displayEmail = invoiceClient?.email || "No email on file";
-
   return (
     <main className="min-h-screen p-4 md:p-8 font-sans" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
       
       <style dangerouslySetInnerHTML={{__html: `
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         @media print {
             @page { margin: 15mm; size: A4 portrait; }
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
@@ -252,6 +289,7 @@ export default function PTReportDashboard() {
             #printable-invoice, #printable-invoice * { visibility: visible; }
             .no-print { display: none !important; }
             .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+            input { border: none !important; background: transparent !important; }
         }
       `}} />
 
@@ -363,8 +401,8 @@ export default function PTReportDashboard() {
                 <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print shrink-0">
                     <div>
                         <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Unit Price ($)</label>
-                        <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => setUnitPrice(Number(e.target.value))} />
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Global Unit Price ($)</label>
+                        <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => handleUnitPriceChange(Number(e.target.value))} />
                     </div>
 
                     <div className="border-t border-gray-100 pt-4">
@@ -377,22 +415,16 @@ export default function PTReportDashboard() {
                         <button onClick={addCustomItem} className="w-full bg-gray-800 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                     </div>
 
-                    {invoiceBookings.length > 0 && (
-                        <div className="border-t border-gray-100 pt-4">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Manage Sessions</label>
-                            <div className="space-y-2 max-h-32 overflow-y-auto">
-                                {invoiceBookings.map(b => {
-                                    const d = b.slot_key.split('|')[0].split('-').reverse().join('/');
-                                    return (
-                                        <div key={b.id} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded border border-gray-100">
-                                            <span className="text-gray-700">{d}</span>
-                                            <button onClick={() => removePTBooking(b)} className="text-red-500 hover:text-red-700 font-bold" title="Delete and Refund">✕</button>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-                        </div>
-                    )}
+                    {/* NEW: BILLING ADJUSTMENT */}
+                    <div className="border-t border-gray-100 pt-4">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Billing Adjustment</label>
+                        <button onClick={addAutoRounding} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-[#f05a28] py-2 rounded-lg font-bold transition-colors text-xs">
+                            ⚖️ Auto-Round (Nearest $10)
+                        </button>
+                        <button onClick={addManualAdjustment} className="w-full bg-gray-100 hover:bg-gray-200 text-[#f05a28] py-2 rounded-lg font-bold transition-colors text-xs">
+                            ➖ Add Custom Discount
+                        </button>
+                    </div>
 
                     <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
                         <button onClick={sendEmailInvoice} disabled={isSendingEmail} className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl shadow-md hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
@@ -416,7 +448,7 @@ export default function PTReportDashboard() {
                     </div>
                 </div>
 
-                {/* COMPACT PRINTABLE INVOICE */}
+                {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE) */}
                 <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
                     <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                         
@@ -456,26 +488,26 @@ export default function PTReportDashboard() {
                                 </tr>
                             </thead>
                             <tbody className="text-sm">
-                                {invoiceBookings.map((booking, i) => {
-                                    const datePart = booking.slot_key.split('|')[0];
-                                    const [y, m, d] = datePart.split('-');
-                                    return (
-                                        <tr key={booking.id} className="border-b border-gray-50">
-                                            <td className="py-1.5 text-left">{invoiceClient.type === 'intro' ? 'Intro Pack Training' : 'Personal Training'}</td>
-                                            <td className="py-1.5 text-center text-gray-600">{`${d}/${m}/${y}`}</td>
-                                            <td className="py-1.5 text-center">1</td>
-                                            <td className="py-1.5 text-center">${unitPrice.toFixed(2)}</td>
-                                            <td className="py-1.5 text-right">${unitPrice.toFixed(2)}</td>
-                                        </tr>
-                                    );
-                                })}
-                                {customItems.map((item, i) => (
-                                    <tr key={i} className="border-b border-gray-50">
-                                        <td className="py-1.5 text-left">{item.desc}</td>
-                                        <td className="py-1.5 text-center text-gray-600">{item.date}</td>
-                                        <td className="py-1.5 text-center">1</td>
-                                        <td className="py-1.5 text-center">${item.price.toFixed(2)}</td>
-                                        <td className="py-1.5 text-right">${item.price.toFixed(2)}</td>
+                                {invoiceLines.map(line => (
+                                    <tr key={line.id} className="border-b border-gray-50 group relative hover:bg-orange-50/50 transition-colors">
+                                        <td className="py-1.5 text-left">
+                                            <input type="text" value={line.desc} onChange={e => updateLine(line.id, 'desc', e.target.value)} className="w-full bg-transparent outline-none font-bold text-[#16202e] border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        </td>
+                                        <td className="py-1.5 text-center">
+                                            <input type="text" value={line.date} onChange={e => updateLine(line.id, 'date', e.target.value)} className="w-24 text-center bg-transparent outline-none text-xs text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        </td>
+                                        <td className="py-1.5 text-center">
+                                            <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        </td>
+                                        <td className="py-1.5 text-center">
+                                            $<input type="number" step="1" value={line.rate} onChange={e => updateLine(line.id, 'rate', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        </td>
+                                        <td className="py-1.5 text-right font-bold text-[#16202e] relative pr-2">
+                                            ${(line.qty * line.rate).toFixed(2)}
+                                            
+                                            {/* INVISIBLE DELETE BUTTON (Appears on Hover) */}
+                                            <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1/2 -translate-y-1/2 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
+                                        </td>
                                     </tr>
                                 ))}
                             </tbody>

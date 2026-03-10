@@ -18,6 +18,16 @@ type Client = {
 };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
 
+// NEW: Universal Line Item Type
+type LineItem = {
+    id: string;
+    desc: string;
+    date: string;
+    qty: number;
+    rate: number;
+    isLabour?: boolean;
+};
+
 export default function ItaReportDashboard() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,15 +36,14 @@ export default function ItaReportDashboard() {
   // Invoice State
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
   const [invoiceBookings, setInvoiceBookings] = useState<Booking[]>([]);
-  const [invoiceDates, setInvoiceDates] = useState<string[]>([]);
+  const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]); // Unified editable rows
   const [unitPrice, setUnitPrice] = useState<number>(70);
-  const [customItems, setCustomItems] = useState<{desc: string, date: string, qty: number, price: number}[]>([]);
+  
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomQty, setNewCustomQty] = useState("1");
   const [newCustomPrice, setNewCustomPrice] = useState("");
   const [newCustomDate, setNewCustomDate] = useState("");
   
-  // SEQUENTIAL INVOICE NUMBERING
   const [invoiceNumber, setInvoiceNumber] = useState<number>(0);
   const [hasIncremented, setHasIncremented] = useState<boolean>(false);
 
@@ -62,7 +71,6 @@ export default function ItaReportDashboard() {
     });
 
     setInvoiceBookings(data || []);
-    setInvoiceDates(formattedDates);
     
     // Fetch Next Invoice Number
     setHasIncremented(false);
@@ -71,20 +79,86 @@ export default function ItaReportDashboard() {
 
     setInvoiceClient(client);
     setUnitPrice(70);
-    setCustomItems([]);
+    
+    // BUILD INITIAL EDITABLE LINE ITEMS
+    const unpaidHours = Math.abs(client.sessions_remaining);
+    const totalBlocks = (data || []).length;
+    let remainingHoursToAllocate = unpaidHours;
+    const initialLines: LineItem[] = [];
+
+    if (formattedDates.length > 0) {
+        formattedDates.forEach((dateStr, index) => {
+            const blocksThisDay = (data || []).filter(b => {
+                const [y, m, day] = b.slot_key.split('|')[0].split('-');
+                return `${day}/${m}/${y}` === dateStr;
+            }).length;
+            
+            let hours = 0;
+            if (index === formattedDates.length - 1 || totalBlocks === 0) {
+                hours = Number(remainingHoursToAllocate.toFixed(2));
+            } else {
+                hours = Number(((blocksThisDay / totalBlocks) * unpaidHours).toFixed(2));
+                remainingHoursToAllocate -= hours;
+            }
+            initialLines.push({ id: `labour-${index}`, desc: 'Landscaping Labour', date: dateStr, qty: hours, rate: 70, isLabour: true });
+        });
+    } else if (unpaidHours > 0) {
+        initialLines.push({ id: `labour-0`, desc: 'Landscaping Labour', date: new Date().toLocaleDateString('en-AU'), qty: unpaidHours, rate: 70, isLabour: true });
+    }
+
+    setInvoiceLines(initialLines);
     setNewCustomDate(new Date().toISOString().split('T')[0]);
     setLoading(false);
+  }
+
+  // --- EDITABLE INVOICE FUNCTIONS ---
+  function updateLine(id: string, field: keyof LineItem, value: any) {
+      setInvoiceLines(prev => prev.map(line => line.id === id ? { ...line, [field]: value } : line));
+  }
+
+  async function removeLine(lineId: string, dateStr?: string) {
+      if (dateStr) {
+          if (!window.confirm(`Remove ${dateStr} from this invoice?\n(This removes the date from the list but DOES NOT change the financial balance).`)) return;
+          const [d, m, y] = dateStr.split('/');
+          const isoDate = `${y}-${m}-${d}`;
+          const bookingsToDelete = invoiceBookings.filter(b => b.slot_key.startsWith(isoDate));
+          const idsToDelete = bookingsToDelete.map(b => b.id);
+          if (idsToDelete.length > 0) await supabase.from('bookings').delete().in('id', idsToDelete);
+          setInvoiceBookings(prev => prev.filter(b => !idsToDelete.includes(b.id)));
+          loadReportData();
+      }
+      setInvoiceLines(prev => prev.filter(l => l.id !== lineId));
+  }
+
+  function handleUnitPriceChange(newRate: number) {
+      setUnitPrice(newRate);
+      // Auto-update all labour items if the global rate changes
+      setInvoiceLines(prev => prev.map(line => line.isLabour ? { ...line, rate: newRate } : line));
   }
 
   function addCustomItem() {
       if (!newCustomDesc || !newCustomPrice || !newCustomQty || !newCustomDate) return;
       const [y, m, d] = newCustomDate.split('-');
       const displayDate = `${d}/${m}/${y}`;
-      setCustomItems([...customItems, { desc: newCustomDesc, date: displayDate, qty: parseFloat(newCustomQty), price: parseFloat(newCustomPrice) }]);
-      setNewCustomDesc("");
-      setNewCustomPrice("");
-      setNewCustomQty("1");
+      setInvoiceLines([...invoiceLines, { id: `custom-${Date.now()}`, desc: newCustomDesc, date: displayDate, qty: parseFloat(newCustomQty), rate: parseFloat(newCustomPrice) }]);
+      setNewCustomDesc(""); setNewCustomPrice(""); setNewCustomQty("1");
       setNewCustomDate(new Date().toISOString().split('T')[0]);
+  }
+
+  // --- BILLING ADJUSTMENT (ROUNDING) ---
+  function addAutoRounding() {
+      const currentTotal = invoiceLines.reduce((sum, line) => sum + (line.qty * line.rate), 0);
+      const remainder = currentTotal % 10;
+      if (remainder !== 0) {
+          setInvoiceLines(prev => [...prev, { id: `adj-${Date.now()}`, desc: 'Billing Adjustment', date: new Date().toLocaleDateString('en-AU'), qty: 1, rate: -remainder }]);
+      }
+  }
+
+  function addManualAdjustment() {
+      const amt = parseFloat(prompt("Enter discount amount (e.g. 15):") || "0");
+      if (amt > 0) {
+          setInvoiceLines(prev => [...prev, { id: `adj-${Date.now()}`, desc: 'Billing Adjustment', date: new Date().toLocaleDateString('en-AU'), qty: 1, rate: -Math.abs(amt) }]);
+      }
   }
 
   async function markInvoicePaid(clientId: string, clientName: string) {
@@ -95,21 +169,6 @@ export default function ItaReportDashboard() {
       await loadReportData(); 
   }
 
-  async function removeItaDate(dateStr: string) {
-      if (!window.confirm(`Remove ${dateStr} from this invoice?\n(Note: This removes the date from the list but does NOT change the financial balance).`)) return;
-      const [d, m, y] = dateStr.split('/');
-      const isoDate = `${y}-${m}-${d}`;
-      const bookingsToDelete = invoiceBookings.filter(b => b.slot_key.startsWith(isoDate));
-      const idsToDelete = bookingsToDelete.map(b => b.id);
-      if (idsToDelete.length > 0) {
-          await supabase.from('bookings').delete().in('id', idsToDelete);
-      }
-      setInvoiceBookings(prev => prev.filter(b => !idsToDelete.includes(b.id)));
-      setInvoiceDates(prev => prev.filter(date => date !== dateStr));
-      loadReportData();
-  }
-
-  // Automatically increment the invoice number in the database so it's ready for the next one
   async function markInvoiceAsIssued() {
       if (!hasIncremented && invoiceNumber > 0) {
           setHasIncremented(true);
@@ -118,49 +177,18 @@ export default function ItaReportDashboard() {
   }
 
   // ==========================================
-  // INVOICE CALCULATIONS
+  // INVOICE CALCULATIONS & SAFE VARIABLES
   // ==========================================
-  const unpaidHours = invoiceClient ? Math.abs(invoiceClient.sessions_remaining) : 0;
-  const invoiceSubtotal = unpaidHours * unitPrice;
-  const customTotal = customItems.reduce((sum, item) => sum + (item.price * item.qty), 0);
-  const totalDue = invoiceSubtotal + customTotal;
+  const totalDue = invoiceLines.reduce((sum, item) => sum + (item.qty * item.rate), 0);
   const todayStr = new Date().toLocaleDateString('en-AU');
-
   const displayName: string = String(invoiceClient?.billing_name || invoiceClient?.name || "Client");
   const displayEmail: string = String(invoiceClient?.email || "No email on file");
-
-  const dailyRows: {date: string, hours: number}[] = [];
-  const totalBlocks = invoiceBookings.length;
-  let remainingHoursToAllocate = unpaidHours;
-
-  if (invoiceDates.length > 0) {
-      invoiceDates.forEach((dateStr, index) => {
-          const blocksThisDay = invoiceBookings.filter(b => {
-              const [y, m, day] = b.slot_key.split('|')[0].split('-');
-              return `${day}/${m}/${y}` === dateStr;
-          }).length;
-          
-          let hours = 0;
-          if (index === invoiceDates.length - 1 || totalBlocks === 0) {
-              hours = Number(remainingHoursToAllocate.toFixed(2));
-          } else {
-              hours = Number(((blocksThisDay / totalBlocks) * unpaidHours).toFixed(2));
-              remainingHoursToAllocate -= hours;
-          }
-          dailyRows.push({ date: dateStr, hours });
-      });
-  } else if (unpaidHours > 0) {
-      dailyRows.push({ date: todayStr, hours: unpaidHours });
-  }
 
   // ==========================================
   // ACTION BUTTONS
   // ==========================================
   function sendTextInvoice() {
-      if (!invoiceClient || !invoiceClient.phone) {
-          alert("No phone number found for this client. Please add it in Supabase!");
-          return;
-      }
+      if (!invoiceClient || !invoiceClient.phone) { alert("No phone number found for this client!"); return; }
       markInvoiceAsIssued();
       const cleanPhone = String(invoiceClient.phone).replace(/\s+/g, '');
       const firstName = displayName.split(' ')[0]; 
@@ -193,24 +221,14 @@ export default function ItaReportDashboard() {
                     </tr>
                 </thead>
                 <tbody>
-                    ${unpaidHours > 0 ? dailyRows.map(row => `
+                    ${invoiceLines.map(line => `
                     <tr style="border-bottom: 1px solid #eee;">
-                        <td style="padding: 4px 0; font-size: 14px;">Landscaping Labour</td>
-                        <td style="padding: 4px 0; font-size: 13px; color: #666;">${row.date}</td>
-                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">${row.hours}</td>
-                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">$${unitPrice.toFixed(2)}</td>
-                        <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${(row.hours * unitPrice).toFixed(2)}</td>
-                    </tr>`).join('') : ''}
-                    
-                    ${customItems.map(item => `
-                        <tr style="border-bottom: 1px solid #eee;">
-                            <td style="padding: 4px 0; font-size: 14px;">${item.desc}</td>
-                            <td style="padding: 4px 0; font-size: 13px; color: #666;">${item.date}</td>
-                            <td style="padding: 4px 0; font-size: 14px; text-align: center;">${item.qty}</td>
-                            <td style="padding: 4px 0; font-size: 14px; text-align: center;">$${item.price.toFixed(2)}</td>
-                            <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${(item.qty * item.price).toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
+                        <td style="padding: 4px 0; font-size: 14px;">${line.desc}</td>
+                        <td style="padding: 4px 0; font-size: 13px; color: #666;">${line.date}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">${line.qty}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: center;">$${line.rate.toFixed(2)}</td>
+                        <td style="padding: 4px 0; font-size: 14px; text-align: right;">$${(line.qty * line.rate).toFixed(2)}</td>
+                    </tr>`).join('')}
                 </tbody>
             </table>
 
@@ -223,7 +241,6 @@ export default function ItaReportDashboard() {
                 <p style="margin: 2px 0; font-size: 13px;"><strong>Account:</strong> 301182182</p>
                 <p style="font-size: 11px; color: #166534; margin-top: 10px;">Please make payment within 7 days. Thank you!</p>
             </div>
-
             <p style="font-size: 10px; color: #9ca3af; text-align: center; margin-top: 20px;">This email serves as your official tax invoice.</p>
         </div>
       `;
@@ -251,8 +268,8 @@ export default function ItaReportDashboard() {
   return (
     <main className="min-h-screen p-4 md:p-8 font-sans bg-green-50 text-[#166534]">
       
-      {/* IMPROVED COMPACT PRINT MARGINS */}
       <style dangerouslySetInnerHTML={{__html: `
+        input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
         @media print {
             @page { margin: 15mm; size: A4 portrait; }
             body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
@@ -261,6 +278,7 @@ export default function ItaReportDashboard() {
             #printable-invoice, #printable-invoice * { visibility: visible; }
             .no-print { display: none !important; }
             .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+            input { border: none !important; background: transparent !important; }
         }
       `}} />
 
@@ -273,17 +291,11 @@ export default function ItaReportDashboard() {
             <Link href="/"><button className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-white border border-green-200 text-green-700 hover:bg-green-100">← Back to Calendar</button></Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-100"><div className="text-sm font-bold text-green-600 uppercase tracking-wider mb-2">Active Jobs</div><div className="text-4xl font-black text-green-800">{clients.length}</div></div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-100"><div className="text-sm font-bold text-red-500 uppercase tracking-wider mb-2">Total Unpaid Hours</div><div className="text-4xl font-black text-red-600">{totalUnpaidHours}</div></div>
-            <div className="bg-white p-6 rounded-2xl shadow-sm border border-green-100"><div className="text-sm font-bold text-green-600 uppercase tracking-wider mb-2">All-Time Hours Logged</div><div className="text-4xl font-black text-green-800">{totalHistoricalHours}</div></div>
-        </div>
-
         <div className="bg-white rounded-2xl shadow-sm border border-green-100 overflow-hidden text-[#16202e]">
             <div className="px-6 py-4 border-b border-green-100 bg-white flex justify-between items-center"><h2 className="text-lg font-bold text-green-800">Invoice Tracking</h2></div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-green-600 bg-green-50/30"><th className="px-6 py-4 font-bold">Client / Job Name</th><th className="px-6 py-4 font-bold">Unpaid Hours</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold">All-Time Billed</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
+                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-green-600 bg-green-50/30"><th className="px-6 py-4 font-bold">Client / Job Name</th><th className="px-6 py-4 font-bold">Unpaid Hours</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
                     <tbody className="text-sm">
                         {clients.map(client => {
                             const unpaid = client.sessions_remaining < 0 ? Math.abs(client.sessions_remaining) : 0;
@@ -293,7 +305,6 @@ export default function ItaReportDashboard() {
                                     <td className="px-6 py-5 font-bold text-base">{client.name}</td>
                                     <td className="px-6 py-5">{isOwing ? <span className="text-red-600 font-black text-lg">{unpaid} hrs</span> : <span className="text-gray-400 font-bold px-2 py-1 bg-gray-100 rounded text-xs">All Paid</span>}</td>
                                     <td className="px-6 py-5 text-center">{isOwing && <button onClick={() => openInvoice(client)} className="px-4 py-2 bg-white border-2 border-green-500 text-green-600 font-bold rounded-lg shadow-sm hover:bg-green-50 transition-colors text-xs uppercase tracking-wider">📄 Create</button>}</td>
-                                    <td className="px-6 py-5 font-medium text-gray-500">{client.historical_attended} hrs</td>
                                     <td className="px-6 py-5 text-right">{isOwing && <button onClick={() => markInvoicePaid(client.id, client.name)} className="px-4 py-2 bg-green-500 text-white font-bold rounded-lg shadow hover:bg-green-600 transition-colors text-xs uppercase tracking-wider">✅ Mark Paid</button>}</td>
                                 </tr>
                             );
@@ -312,8 +323,8 @@ export default function ItaReportDashboard() {
                     <div className="w-full md:w-64 bg-white border-b md:border-b-0 md:border-r border-gray-200 p-6 flex flex-col gap-6 no-print shrink-0">
                         <div>
                             <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Hourly Rate ($)</label>
-                            <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => setUnitPrice(Number(e.target.value))} />
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Global Hourly Rate ($)</label>
+                            <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => handleUnitPriceChange(Number(e.target.value))} />
                         </div>
 
                         <div className="border-t border-gray-100 pt-4">
@@ -327,19 +338,16 @@ export default function ItaReportDashboard() {
                             <button onClick={addCustomItem} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                         </div>
 
-                        {invoiceDates.length > 0 && (
-                            <div className="border-t border-gray-100 pt-4">
-                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Manage Dates</label>
-                                <div className="space-y-2 max-h-32 overflow-y-auto">
-                                    {invoiceDates.map(dateStr => (
-                                        <div key={dateStr} className="flex justify-between items-center text-sm bg-gray-50 p-2 rounded border border-gray-100">
-                                            <span className="text-gray-700">{dateStr}</span>
-                                            <button onClick={() => removeItaDate(dateStr)} className="text-red-500 hover:text-red-700 font-bold" title="Remove Date (Does not affect balance)">✕</button>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
+                        {/* NEW: BILLING ADJUSTMENT */}
+                        <div className="border-t border-gray-100 pt-4">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Billing Adjustment</label>
+                            <button onClick={addAutoRounding} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-[#166534] py-2 rounded-lg font-bold transition-colors text-xs">
+                                ⚖️ Auto-Round (Nearest $10)
+                            </button>
+                            <button onClick={addManualAdjustment} className="w-full bg-gray-100 hover:bg-gray-200 text-[#166534] py-2 rounded-lg font-bold transition-colors text-xs">
+                                ➖ Add Custom Discount
+                            </button>
+                        </div>
 
                         <div className="mt-auto flex flex-col gap-3 pt-6 border-t border-gray-100">
                             <button onClick={sendEmailInvoice} disabled={isSendingEmail} className="w-full py-3 bg-gray-800 text-white font-bold rounded-xl shadow-md hover:bg-gray-900 transition-colors flex justify-center items-center gap-2 disabled:opacity-50">
@@ -366,7 +374,7 @@ export default function ItaReportDashboard() {
                         </div>
                     </div>
 
-                    {/* COMPACT PRINTABLE INVOICE */}
+                    {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE) */}
                     <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
                         <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                             
@@ -406,22 +414,26 @@ export default function ItaReportDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody className="text-sm">
-                                    {unpaidHours > 0 && dailyRows.map(row => (
-                                        <tr key={row.date} className="font-bold bg-green-50/50 border-b border-green-100/50">
-                                            <td className="py-1.5 text-left">Landscaping Labour</td>
-                                            <td className="py-1.5 text-center text-gray-600">{row.date}</td>
-                                            <td className="py-1.5 text-center">{row.hours}</td>
-                                            <td className="py-1.5 text-center">${unitPrice.toFixed(2)}</td>
-                                            <td className="py-1.5 text-right">${(row.hours * unitPrice).toFixed(2)}</td>
-                                        </tr>
-                                    ))}
-                                    {customItems.map((item, i) => (
-                                        <tr key={i} className="border-b border-gray-50">
-                                            <td className="py-1.5 text-left">{item.desc}</td>
-                                            <td className="py-1.5 text-center text-gray-600">{item.date}</td>
-                                            <td className="py-1.5 text-center">{item.qty}</td>
-                                            <td className="py-1.5 text-center">${item.price.toFixed(2)}</td>
-                                            <td className="py-1.5 text-right">${(item.qty * item.price).toFixed(2)}</td>
+                                    {invoiceLines.map(line => (
+                                        <tr key={line.id} className="border-b border-gray-100 group relative hover:bg-green-50/30 transition-colors">
+                                            <td className="py-1.5 text-left">
+                                                <input type="text" value={line.desc} onChange={e => updateLine(line.id, 'desc', e.target.value)} className="w-full bg-transparent outline-none font-bold text-[#16202e] border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:border-transparent" />
+                                            </td>
+                                            <td className="py-1.5 text-center">
+                                                <input type="text" value={line.date} onChange={e => updateLine(line.id, 'date', e.target.value)} className="w-24 text-center bg-transparent outline-none text-xs text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:border-transparent" />
+                                            </td>
+                                            <td className="py-1.5 text-center">
+                                                <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:border-transparent" />
+                                            </td>
+                                            <td className="py-1.5 text-center">
+                                                $<input type="number" step="1" value={line.rate} onChange={e => updateLine(line.id, 'rate', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:border-transparent" />
+                                            </td>
+                                            <td className="py-1.5 text-right font-bold text-[#16202e] relative pr-2">
+                                                ${(line.qty * line.rate).toFixed(2)}
+                                                
+                                                {/* INVISIBLE DELETE BUTTON (Appears on Hover) */}
+                                                <button onClick={() => removeLine(line.id, line.isLabour ? line.date : undefined)} className="absolute -right-6 top-1/2 -translate-y-1/2 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
+                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
