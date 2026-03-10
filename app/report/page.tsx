@@ -253,8 +253,6 @@ export default function PTReportDashboard() {
 
   const totalActiveClients = ptClients.length;
   const totalSessionsRemaining = ptClients.reduce((sum, c) => sum + Math.max(0, c.sessions_remaining), 0);
-  
-  // FIX: Re-added the missing calculations for All-Time Sessions!
   const totalHistoricalDelivered = ptClients.reduce((sum, c) => sum + c.historical_attended, 0);
   const totalAppDelivered = bookings.filter(b => ptClients.find(c => c.id === b.client_id)).length;
   const totalSessionsDelivered = totalHistoricalDelivered + totalAppDelivered;
@@ -419,7 +417,7 @@ export default function PTReportDashboard() {
                         <button onClick={addCustomItem} className="w-full bg-gray-800 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                     </div>
 
-                    {/* NEW: BILLING ADJUSTMENT */}
+                    {/* BILLING ADJUSTMENT */}
                     <div className="border-t border-gray-100 pt-4">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Billing Adjustment</label>
                         <button onClick={addAutoRounding} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-[#f05a28] py-2 rounded-lg font-bold transition-colors text-xs">
@@ -452,7 +450,7 @@ export default function PTReportDashboard() {
                     </div>
                 </div>
 
-                {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE) */}
+                {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE WITH AUTO-EXPAND) */}
                 <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
                     <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                         
@@ -494,23 +492,57 @@ export default function PTReportDashboard() {
                             <tbody className="text-sm">
                                 {invoiceLines.map(line => (
                                     <tr key={line.id} className="border-b border-gray-50 group relative hover:bg-orange-50/50 transition-colors">
-                                        <td className="py-1.5 text-left">
-                                            <input type="text" value={line.desc} onChange={e => updateLine(line.id, 'desc', e.target.value)} className="w-full bg-transparent outline-none font-bold text-[#16202e] border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        
+                                        {/* AUTO-EXPANDING DESCRIPTION */}
+                                        <td className="py-2 text-left align-top">
+                                            <div className="relative w-full">
+                                                <div className="invisible whitespace-pre-wrap break-words font-bold text-[#16202e] leading-tight pb-1 min-h-[24px]">
+                                                    {line.desc || "."}
+                                                </div>
+                                                <textarea 
+                                                    value={line.desc} 
+                                                    onChange={e => updateLine(line.id, 'desc', e.target.value)} 
+                                                    className="absolute inset-0 w-full h-full bg-transparent outline-none font-bold text-[#16202e] border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden resize-none overflow-hidden leading-tight" 
+                                                />
+                                                <div className="hidden print:block absolute inset-0 w-full h-full font-bold text-[#16202e] whitespace-pre-wrap break-words leading-tight">
+                                                    {line.desc}
+                                                </div>
+                                            </div>
                                         </td>
-                                        <td className="py-1.5 text-center">
-                                            <input type="text" value={line.date} onChange={e => updateLine(line.id, 'date', e.target.value)} className="w-24 text-center bg-transparent outline-none text-xs text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+
+                                        {/* AUTO-EXPANDING DATE */}
+                                        <td className="py-2 text-center align-top">
+                                            <div className="relative w-full">
+                                                <div className="invisible whitespace-pre-wrap break-words text-xs leading-tight pb-1 min-h-[24px]">
+                                                    {line.date || "."}
+                                                </div>
+                                                <textarea 
+                                                    value={line.date} 
+                                                    onChange={e => updateLine(line.id, 'date', e.target.value)} 
+                                                    className="absolute inset-0 w-full h-full text-center bg-transparent outline-none text-xs text-gray-600 border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden resize-none overflow-hidden leading-tight" 
+                                                />
+                                                <div className="hidden print:block absolute inset-0 w-full h-full text-center text-xs text-gray-600 whitespace-pre-wrap break-words leading-tight">
+                                                    {line.date}
+                                                </div>
+                                            </div>
                                         </td>
-                                        <td className="py-1.5 text-center">
-                                            <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+
+                                        {/* NUMERICAL FIELDS */}
+                                        <td className="py-2 text-center align-top">
+                                            <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden" />
+                                            <span className="hidden print:block w-full text-center">{line.qty}</span>
                                         </td>
-                                        <td className="py-1.5 text-center">
-                                            $<input type="number" step="1" value={line.rate} onChange={e => updateLine(line.id, 'rate', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:border-transparent" />
+                                        <td className="py-2 text-center align-top">
+                                            <div className="flex items-center justify-center print:hidden">
+                                                $ <input type="number" step="1" value={line.rate} onChange={e => updateLine(line.id, 'rate', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors" />
+                                            </div>
+                                            <span className="hidden print:block w-full text-center">${line.rate.toFixed(2)}</span>
                                         </td>
-                                        <td className="py-1.5 text-right font-bold text-[#16202e] relative pr-2">
+                                        <td className="py-2 text-right font-bold text-[#16202e] relative pr-2 align-top">
                                             ${(line.qty * line.rate).toFixed(2)}
                                             
                                             {/* INVISIBLE DELETE BUTTON (Appears on Hover) */}
-                                            <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1/2 -translate-y-1/2 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
+                                            <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
                                         </td>
                                     </tr>
                                 ))}
