@@ -253,7 +253,11 @@ export default function PTReportDashboard() {
 
   const totalActiveClients = ptClients.length;
   const totalSessionsRemaining = ptClients.reduce((sum, c) => sum + Math.max(0, c.sessions_remaining), 0);
+  
+  // FIX: Re-added the missing calculations for All-Time Sessions!
   const totalHistoricalDelivered = ptClients.reduce((sum, c) => sum + c.historical_attended, 0);
+  const totalAppDelivered = bookings.filter(b => ptClients.find(c => c.id === b.client_id)).length;
+  const totalSessionsDelivered = totalHistoricalDelivered + totalAppDelivered;
 
   const targetDate = new Date();
   targetDate.setMonth(targetDate.getMonth() - rentMonthOffset);
