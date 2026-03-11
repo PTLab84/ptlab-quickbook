@@ -21,7 +21,6 @@ type Client = {
 };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
 
-// NEW: Universal Line Item Type
 type LineItem = {
     id: string;
     bookingId?: string;
@@ -52,6 +51,11 @@ export default function PTReportDashboard() {
   const [invoiceNumber, setInvoiceNumber] = useState<number>(0);
   const [hasIncremented, setHasIncremented] = useState<boolean>(false);
 
+  // NEW: Pre-Paid Package State
+  const [showPackageModal, setShowPackageModal] = useState(false);
+  const [pkgClientId, setPkgClientId] = useState("");
+  const [pkgSessionCount, setPkgSessionCount] = useState(10);
+
   async function loadReportData() {
     setLoading(true);
     const { data: clientData } = await supabase.from('clients').select('*').order('name');
@@ -80,7 +84,6 @@ export default function PTReportDashboard() {
     const defaultRate = client.type === 'intro' ? 50 : 75;
     setUnitPrice(defaultRate);
     
-    // BUILD INITIAL EDITABLE LINE ITEMS
     const initialLines: LineItem[] = (data || []).map((b, i) => {
         const datePart = b.slot_key.split('|')[0];
         const [y, m, d] = datePart.split('-');
@@ -99,7 +102,42 @@ export default function PTReportDashboard() {
     setLoading(false);
   }
 
-  // --- EDITABLE INVOICE FUNCTIONS ---
+  // --- NEW: GENERATE UPFRONT PACKAGE INVOICE ---
+  async function generatePackageInvoice() {
+      if (!pkgClientId) {
+          alert("Please select a client from the dropdown.");
+          return;
+      }
+
+      setLoading(true);
+      const client = clients.find(c => c.id === pkgClientId);
+      if (!client) return;
+
+      setHasIncremented(false);
+      const { data: settingsData } = await supabase.from('settings').select('value').eq('id', 'next_invoice').single();
+      setInvoiceNumber(settingsData ? settingsData.value : 205);
+
+      setInvoiceClient(client);
+      const defaultRate = client.type === 'intro' ? 50 : 75;
+      setUnitPrice(defaultRate);
+
+      const initialLines: LineItem[] = [{
+          id: `pkg-${Date.now()}`,
+          desc: `${pkgSessionCount}x ${client.type === 'intro' ? 'Intro Pack' : 'Personal Training'} Sessions`,
+          date: new Date().toLocaleDateString('en-AU'),
+          qty: pkgSessionCount,
+          rate: defaultRate
+      }];
+
+      setInvoiceLines(initialLines);
+      setNewCustomDate(new Date().toISOString().split('T')[0]);
+      
+      setShowPackageModal(false);
+      setPkgClientId("");
+      setPkgSessionCount(10);
+      setLoading(false);
+  }
+
   function updateLine(id: string, field: keyof LineItem, value: any) {
       setInvoiceLines(prev => prev.map(line => line.id === id ? { ...line, [field]: value } : line));
   }
@@ -130,7 +168,6 @@ export default function PTReportDashboard() {
       setNewCustomDate(new Date().toISOString().split('T')[0]); 
   }
 
-  // --- BILLING ADJUSTMENT (ROUNDING) ---
   function addAutoRounding() {
       const currentTotal = invoiceLines.reduce((sum, line) => sum + (line.qty * line.rate), 0);
       const remainder = currentTotal % 10;
@@ -161,17 +198,11 @@ export default function PTReportDashboard() {
       }
   }
 
-  // ==========================================
-  // INVOICE CALCULATIONS & SAFE VARIABLES
-  // ==========================================
   const totalDue = invoiceLines.reduce((sum, item) => sum + (item.qty * item.rate), 0);
   const todayStr = new Date().toLocaleDateString('en-AU');
   const displayName = String(invoiceClient?.billing_name || invoiceClient?.name || "Client");
   const displayEmail = String(invoiceClient?.email || "No email on file");
 
-  // ==========================================
-  // ACTION BUTTONS
-  // ==========================================
   function sendTextInvoice() {
       if (!invoiceClient || !invoiceClient.phone) { alert("No phone number found for this client!"); return; }
       markInvoiceAsIssued();
@@ -295,13 +326,19 @@ export default function PTReportDashboard() {
         }
       `}} />
 
+      {/* HEADER WITH NEW BUTTON */}
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
                 <h1 className="text-3xl font-bold">PTLab Overview</h1>
                 <p className="text-gray-500 mt-1">Personal Training Attendance & Payments</p>
             </div>
-            <Link href="/"><button className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-white border border-gray-200 hover:bg-gray-50 text-[#16202e]">← Back to Calendar</button></Link>
+            <div className="flex items-center gap-3">
+                <button onClick={() => setShowPackageModal(true)} className="px-5 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-indigo-600 hover:bg-indigo-700 text-white border border-indigo-700">
+                    ➕ Create Package Invoice
+                </button>
+                <Link href="/"><button className="px-6 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-all bg-white border border-gray-200 hover:bg-gray-50 text-[#16202e]">← Back to Calendar</button></Link>
+            </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -309,7 +346,6 @@ export default function PTReportDashboard() {
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Pre-Paid Sessions</div><div className="text-4xl font-black text-green-600">{totalSessionsRemaining}</div></div>
             <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between"><div className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">All-Time Sessions</div><div className="text-4xl font-black text-[#f05a28]">{totalSessionsDelivered}</div></div>
             
-            {/* GYM RENT TRACKER */}
             <div className="bg-indigo-50 p-6 rounded-2xl shadow-sm border border-indigo-100 flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute right-0 top-0 text-6xl opacity-10 pt-4 pr-2 pointer-events-none">🏋️‍♂️</div>
                 <div>
@@ -362,7 +398,7 @@ export default function PTReportDashboard() {
             </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e] border-t-4 border-t-orange-500 mt-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e border-t-4 border-t-orange-500 mt-8">
             <div className="px-6 py-4 border-b border-gray-100 bg-orange-50 flex justify-between items-center"><h2 className="text-lg font-bold text-orange-900">Intro Pack Clients</h2><span className="text-xs font-bold px-2 py-1 bg-orange-200 text-orange-900 rounded-full">{introClients.length}</span></div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
@@ -394,6 +430,35 @@ export default function PTReportDashboard() {
         </div>
       </div>
 
+      {/* --- NEW: PRE-PAID PACKAGE MODAL --- */}
+      {showPackageModal && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 backdrop-blur-sm" onClick={() => setShowPackageModal(false)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
+                <h2 className="text-xl font-black text-[#16202e] mb-4">Create Package Invoice</h2>
+                
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Select Client</label>
+                <select value={pkgClientId} onChange={e => setPkgClientId(e.target.value)} className="w-full p-3 border border-gray-300 rounded-lg text-sm mb-4 outline-none focus:border-indigo-500 font-bold text-[#16202e] bg-white">
+                    <option value="" disabled>-- Choose a Client --</option>
+                    {ptClients.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                </select>
+
+                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Number of Sessions</label>
+                <select value={pkgSessionCount} onChange={e => setPkgSessionCount(Number(e.target.value))} className="w-full p-3 border border-gray-300 rounded-lg text-sm mb-6 outline-none focus:border-indigo-500 font-bold text-[#16202e] bg-white">
+                    {[1, 2, 3, 4, 5, 10, 15, 20, 25, 30, 40, 50].map(num => (
+                        <option key={num} value={num}>{num} Sessions</option>
+                    ))}
+                </select>
+
+                <div className="flex gap-3">
+                    <button onClick={() => setShowPackageModal(false)} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-colors">Cancel</button>
+                    <button onClick={generatePackageInvoice} className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-colors">Generate</button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* --- INVOICE MODAL --- */}
       {invoiceClient && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-2 md:p-6 overflow-y-auto backdrop-blur-sm" onClick={() => setInvoiceClient(null)}>
@@ -417,7 +482,6 @@ export default function PTReportDashboard() {
                         <button onClick={addCustomItem} className="w-full bg-gray-800 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                     </div>
 
-                    {/* BILLING ADJUSTMENT */}
                     <div className="border-t border-gray-100 pt-4">
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Billing Adjustment</label>
                         <button onClick={addAutoRounding} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-[#f05a28] py-2 rounded-lg font-bold transition-colors text-xs">
@@ -493,7 +557,6 @@ export default function PTReportDashboard() {
                                 {invoiceLines.map(line => (
                                     <tr key={line.id} className="border-b border-gray-50 group relative hover:bg-orange-50/50 transition-colors">
                                         
-                                        {/* AUTO-EXPANDING DESCRIPTION */}
                                         <td className="py-2 text-left align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words font-bold text-[#16202e] leading-tight pb-1 min-h-[24px]">
@@ -510,7 +573,6 @@ export default function PTReportDashboard() {
                                             </div>
                                         </td>
 
-                                        {/* AUTO-EXPANDING DATE */}
                                         <td className="py-2 text-center align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words text-xs leading-tight pb-1 min-h-[24px]">
@@ -527,7 +589,6 @@ export default function PTReportDashboard() {
                                             </div>
                                         </td>
 
-                                        {/* NUMERICAL FIELDS */}
                                         <td className="py-2 text-center align-top">
                                             <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden" />
                                             <span className="hidden print:block w-full text-center">{line.qty}</span>
@@ -541,7 +602,6 @@ export default function PTReportDashboard() {
                                         <td className="py-2 text-right font-bold text-[#16202e] relative pr-2 align-top">
                                             ${(line.qty * line.rate).toFixed(2)}
                                             
-                                            {/* INVISIBLE DELETE BUTTON (Appears on Hover) */}
                                             <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
                                         </td>
                                     </tr>
