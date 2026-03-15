@@ -21,7 +21,7 @@ type Client = {
   sessions_remaining: number; 
   historical_attended: number;
   active?: boolean;
-  location?: string; // NEW: Location tracking
+  location?: string;
 };
 type SlotKey = string;
 type Booking = { id: string; slotKey: SlotKey; clientId: string; processed: boolean };
@@ -58,6 +58,11 @@ function buildSlots(start: string, end: string, slotMin: number) {
   return out;
 }
 
+// NEW: Helper function to guarantee alphabetical sorting whenever clients are loaded or added
+const sortClientsAlphabetically = (clientList: Client[]) => {
+    return [...clientList].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+};
+
 export default function PTLabScheduler() {
   const [clients, setClients] = useState<Client[]>([]);
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
@@ -65,8 +70,6 @@ export default function PTLabScheduler() {
   const [selected, setSelected] = useState<Set<SlotKey>>(new Set());
   const [googleBusy, setGoogleBusy] = useState<Map<SlotKey, string>>(new Map());
   const [weekOffset, setWeekOffset] = useState(0); 
-  
-  const [isClientListExpanded, setIsClientListExpanded] = useState(false);
 
   const [showIntroPanel, setShowIntroPanel] = useState(false);
   const [introName, setIntroName] = useState("");
@@ -119,7 +122,7 @@ export default function PTLabScheduler() {
     const { data: clientData } = await supabase.from('clients')
         .select('*')
         .or('active.eq.true,active.is.null,name.eq.Michelle appointment')
-        .order('created_at', { ascending: false });
+        .order('name', { ascending: true }); // ALPHABETICAL FROM DATABASE
 
     if (clientData) {
       const safeClients = clientData.map(c => ({
@@ -128,7 +131,7 @@ export default function PTLabScheduler() {
           historical_attended: c.historical_attended || 0,
           location: c.location || 'PTLab'
       }));
-      setClients(safeClients);
+      setClients(sortClientsAlphabetically(safeClients)); // DOUBLE GUARANTEE
       if (safeClients.length > 0 && !activeClientId && !activeExtraActivity) {
           const firstReal = safeClients.find(c => c.name !== 'Michelle appointment' && c.type !== 'extra') || safeClients[0];
           setActiveClientId(firstReal?.id || null);
@@ -464,30 +467,37 @@ export default function PTLabScheduler() {
     let michelle = clients.find(c => c.name === 'Michelle appointment');
     if (!michelle) {
         const { data } = await supabase.from('clients').insert([{ name: 'Michelle appointment', type: 'regular', sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
-        if (data) { setClients(prev => [data, ...prev]); setActiveClientId(data.id); }
+        if (data) { 
+            setClients(prev => sortClientsAlphabetically([...prev, data])); 
+            setActiveClientId(data.id); 
+        }
     } else { setActiveClientId(michelle.id); }
     setSelected(new Set()); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false); setShowPaymentMenu(null); setActiveExtraActivity(null);
   }
 
+  // ALPHABETICAL INSERT FUNCTIONS
   async function addIntroClient() {
     if (!introName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => [...prev, data]); setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
+    setClients(prev => sortClientsAlphabetically([...prev, data])); 
+    setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
   }
 
   async function addRegularClient() {
     if (!regularName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => [...prev, data]); setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
+    setClients(prev => sortClientsAlphabetically([...prev, data])); 
+    setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
   }
 
   async function addItaClient() {
     if (!itaName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => [...prev, data]); setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
+    setClients(prev => sortClientsAlphabetically([...prev, data])); 
+    setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
   }
 
   if (loading && bookings.length === 0) return <div className="h-screen flex items-center justify-center font-bold text-[#16202e]">Loading PTLab...</div>;
@@ -549,76 +559,92 @@ export default function PTLabScheduler() {
             </div>
          </div>
 
-         <div className="flex flex-col gap-1 w-full border-t border-gray-100 pt-2">
+         {/* --- NEW DROPDOWN CLIENT SELECTORS --- */}
+         <div className="flex flex-col gap-3 w-full border-t border-gray-100 pt-3">
             
-            <div className="flex items-start gap-3">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-12 shrink-0 text-right mt-2">PTLab</span>
-                
-                <div className="flex-1 min-w-0">
-                    <div className={`flex items-center gap-2 w-full ${isClientListExpanded ? 'flex-wrap' : 'flex-nowrap overflow-x-auto hide-scrollbar'} pb-2 pt-1 transition-all`}>
-                        {ptClients.map(c => {
-                            const isActive = c.id === activeClientId && !activeExtraActivity;
-                            const balance = c.sessions_remaining;
-                            return (
-                            <div key={c.id} className="relative group shrink-0">
-                                <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
-                                
-                                <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
-                                    style={{ backgroundColor: isActive ? PTLAB.mainBlue : "transparent", color: isActive ? PTLAB.white : PTLAB.mainBlue, border: isActive ? "none" : `1px solid ${PTLAB.mainBlue}`, boxShadow: isActive ? `0 2px 5px ${PTLAB.mainBlue}80` : "none" }}>
-                                    {c.name}
-                                    <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : balance <= 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{balance}</span>
-                                </button>
-
-                                <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
-                            </div>
-                            )
-                        })}
-                    </div>
+            {/* PTLAB ROW */}
+            <div className="flex items-center gap-2 w-full">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-14 shrink-0 text-right">PTLab</span>
+                <div className="flex-1 relative">
+                    <select
+                        className="w-full bg-white border border-gray-300 text-[#16202e] text-sm font-bold rounded-xl pl-3 pr-8 py-2.5 outline-none focus:border-[#0160C9] appearance-none shadow-sm cursor-pointer"
+                        value={(!activeExtraActivity && activeClientObj && activeClientObj.type !== 'ita_job' && activeClientObj.name !== 'Michelle appointment') ? activeClientObj.id : ""}
+                        onChange={(e) => {
+                            if (e.target.value) {
+                                setActiveClientId(e.target.value);
+                                setActiveExtraActivity(null);
+                                setSelected(new Set());
+                                setShowPaymentMenu(null);
+                            }
+                        }}
+                    >
+                        <option value="" disabled>Select PTLab Client...</option>
+                        {ptClients.map(c => (
+                            <option key={c.id} value={c.id}>
+                                {c.name} (Bal: {c.sessions_remaining})
+                            </option>
+                        ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">▼</div>
                 </div>
 
-                <button 
-                    onClick={() => setIsClientListExpanded(!isClientListExpanded)}
-                    className="shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors mt-1"
-                >
-                    {isClientListExpanded ? '▲' : '▼'}
-                </button>
+                {(!activeExtraActivity && activeClientObj && activeClientObj.type !== 'ita_job' && activeClientObj.name !== 'Michelle appointment') && (
+                    <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in zoom-in duration-200">
+                        <button onClick={() => setShowPaymentMenu(activeClientObj.id)} className="w-10 h-10 bg-green-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-green-600 transition-colors text-sm" title="Add Payment">$</button>
+                        <button onClick={() => archiveClient(activeClientObj.id, activeClientObj.name)} className="w-10 h-10 bg-red-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors text-sm" title="Archive Client">✕</button>
+                    </div>
+                )}
             </div>
 
+            {/* ITA JOB ROW */}
             {itaClients.length > 0 && (
-                <div className="flex items-center gap-3 border-t border-gray-50 pt-1">
-                    <span className="text-[10px] font-black text-green-600 uppercase tracking-widest w-12 shrink-0 text-right">Ita Job</span>
-                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto hide-scrollbar pb-2 pt-2 w-full">
-                        {itaClients.map(c => {
-                            const isActive = c.id === activeClientId && !activeExtraActivity;
-                            return (
-                                <div key={c.id} className="relative group shrink-0">
-                                    <button onClick={(e) => { e.stopPropagation(); archiveClient(c.id, c.name); }} className={`absolute -top-2 -left-1 z-10 w-5 h-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-red-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>✕</button>
-                                    
-                                    <button onClick={() => { setActiveClientId(c.id); setActiveExtraActivity(null); setSelected(new Set()); setShowPaymentMenu(null); setShowExtraPanel(false); }} className="pl-4 pr-2 py-2 rounded-full text-sm font-semibold transition-all whitespace-nowrap flex items-center gap-2"
-                                        style={{ backgroundColor: isActive ? "#22c55e" : "#dcfce7", color: isActive ? "white" : "#166534", boxShadow: isActive ? "0 2px 5px rgba(34, 197, 94, 0.4)" : "none", border: isActive ? "none" : "1px solid #bbf7d0" }}>
-                                        {c.name}
-                                        <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white/20 text-white' : c.sessions_remaining < 0 ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-700'}`}>{c.sessions_remaining}</span>
-                                    </button>
-
-                                    <button onClick={(e) => { e.stopPropagation(); setShowPaymentMenu(c.id); }} className={`absolute -top-2 -right-1 z-10 w-5 h-5 bg-green-500 border-2 border-white rounded-full flex items-center justify-center text-[10px] font-bold text-white hover:bg-green-600 shadow-sm ${isActive ? 'opacity-100' : 'opacity-0 lg:group-hover:opacity-100'} transition-opacity`}>$</button>
-                                </div>
-                            )
-                        })}
+                <div className="flex items-center gap-2 w-full pt-1 border-t border-gray-50">
+                    <span className="text-[10px] font-black text-green-600 uppercase tracking-widest w-14 shrink-0 text-right">Ita Job</span>
+                    <div className="flex-1 relative">
+                        <select
+                            className="w-full bg-green-50 border border-green-200 text-green-800 text-sm font-bold rounded-xl pl-3 pr-8 py-2.5 outline-none focus:border-green-500 appearance-none shadow-sm cursor-pointer"
+                            value={(!activeExtraActivity && activeClientObj && activeClientObj.type === 'ita_job') ? activeClientObj.id : ""}
+                            onChange={(e) => {
+                                if (e.target.value) {
+                                    setActiveClientId(e.target.value);
+                                    setActiveExtraActivity(null);
+                                    setSelected(new Set());
+                                    setShowPaymentMenu(null);
+                                }
+                            }}
+                        >
+                            <option value="" disabled>Select Ita Job Client...</option>
+                            {itaClients.map(c => (
+                                <option key={c.id} value={c.id}>
+                                    {c.name} (Bal: {c.sessions_remaining} hrs)
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-green-600 text-xs">▼</div>
                     </div>
+
+                    {(!activeExtraActivity && activeClientObj && activeClientObj.type === 'ita_job') && (
+                        <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in zoom-in duration-200">
+                            <button onClick={() => setShowPaymentMenu(activeClientObj.id)} className="w-10 h-10 bg-green-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-green-600 transition-colors text-sm" title="Log Payment">$</button>
+                            <button onClick={() => archiveClient(activeClientObj.id, activeClientObj.name)} className="w-10 h-10 bg-red-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors text-sm" title="Archive Client">✕</button>
+                        </div>
+                    )}
                 </div>
             )}
 
+            {/* EXTRA ROW */}
             {activeExtraActivity && (
-                <div className="flex items-center gap-3 border-t border-gray-50 pt-1">
-                    <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-12 shrink-0 text-right">Extra</span>
-                    <div className="flex flex-nowrap overflow-x-auto hide-scrollbar pb-1 w-full">
-                        <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="px-4 py-1.5 rounded-full text-sm font-semibold transition-all whitespace-nowrap shrink-0"
-                            style={{ backgroundColor: "#eab308", color: "white", boxShadow: "0 2px 5px rgba(234, 179, 8, 0.4)", border: "none" }}>
+                <div className="flex items-center gap-2 w-full pt-1 border-t border-gray-50">
+                    <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-14 shrink-0 text-right">Extra</span>
+                    <div className="flex-1">
+                        <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap truncate text-left shadow-sm"
+                            style={{ backgroundColor: "#fef08a", color: "#a16207", border: "1px solid #fde047" }}>
                             {activeExtraActivity} (Click to Cancel)
                         </button>
                     </div>
                 </div>
             )}
+
          </div>
       </header>
 
@@ -734,11 +760,10 @@ export default function PTLabScheduler() {
                                 clientType = cObj?.type || "";
                                 isProcessed = regularBooking.processed;
                                 
-                                // THE NEW COLOR LOGIC OVERRIDE
                                 if (cObj?.location === 'AF') {
-                                    bg = "#7e22ce"; // Purple 700
+                                    bg = "#7e22ce"; 
                                     color = "white";
-                                    blockBorder = "2px solid #a855f7"; // Purple 500
+                                    blockBorder = "2px solid #a855f7"; 
                                 } else if (clientType === 'ita_job') {
                                     bg = "#dcfce7";
                                     color = "#166534";
