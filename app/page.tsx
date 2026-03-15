@@ -21,7 +21,7 @@ type Client = {
   sessions_remaining: number; 
   historical_attended: number;
   active?: boolean;
-  location?: string;
+  location?: string; 
 };
 type SlotKey = string;
 type Booking = { id: string; slotKey: SlotKey; clientId: string; processed: boolean };
@@ -57,11 +57,6 @@ function buildSlots(start: string, end: string, slotMin: number) {
   }
   return out;
 }
-
-// NEW: Helper function to guarantee alphabetical sorting whenever clients are loaded or added
-const sortClientsAlphabetically = (clientList: Client[]) => {
-    return [...clientList].sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
-};
 
 export default function PTLabScheduler() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -122,7 +117,7 @@ export default function PTLabScheduler() {
     const { data: clientData } = await supabase.from('clients')
         .select('*')
         .or('active.eq.true,active.is.null,name.eq.Michelle appointment')
-        .order('name', { ascending: true }); // ALPHABETICAL FROM DATABASE
+        .order('created_at', { ascending: false });
 
     if (clientData) {
       const safeClients = clientData.map(c => ({
@@ -131,7 +126,7 @@ export default function PTLabScheduler() {
           historical_attended: c.historical_attended || 0,
           location: c.location || 'PTLab'
       }));
-      setClients(sortClientsAlphabetically(safeClients)); // DOUBLE GUARANTEE
+      setClients(safeClients);
       if (safeClients.length > 0 && !activeClientId && !activeExtraActivity) {
           const firstReal = safeClients.find(c => c.name !== 'Michelle appointment' && c.type !== 'extra') || safeClients[0];
           setActiveClientId(firstReal?.id || null);
@@ -467,43 +462,52 @@ export default function PTLabScheduler() {
     let michelle = clients.find(c => c.name === 'Michelle appointment');
     if (!michelle) {
         const { data } = await supabase.from('clients').insert([{ name: 'Michelle appointment', type: 'regular', sessions_remaining: 0, historical_attended: 0, active: true }]).select().single();
-        if (data) { 
-            setClients(prev => sortClientsAlphabetically([...prev, data])); 
-            setActiveClientId(data.id); 
-        }
+        if (data) { setClients(prev => [data, ...prev]); setActiveClientId(data.id); }
     } else { setActiveClientId(michelle.id); }
     setSelected(new Set()); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false); setShowPaymentMenu(null); setActiveExtraActivity(null);
   }
 
-  // ALPHABETICAL INSERT FUNCTIONS
   async function addIntroClient() {
     if (!introName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: introName, type: "intro", sessions_remaining: -3, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => sortClientsAlphabetically([...prev, data])); 
-    setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
+    setClients(prev => [...prev, data]); setActiveClientId(data.id); setIntroName(""); setShowIntroPanel(false); setActiveExtraActivity(null);
   }
 
   async function addRegularClient() {
     if (!regularName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: regularName, type: "regular", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => sortClientsAlphabetically([...prev, data])); 
-    setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
+    setClients(prev => [...prev, data]); setActiveClientId(data.id); setRegularName(""); setShowRegularPanel(false); setActiveExtraActivity(null);
   }
 
   async function addItaClient() {
     if (!itaName.trim()) return;
     const { data, error } = await supabase.from('clients').insert([{ name: itaName, type: "ita_job", sessions_remaining: 0, historical_attended: 0, active: true, location: 'PTLab' }]).select().single();
     if (error || !data) return;
-    setClients(prev => sortClientsAlphabetically([...prev, data])); 
-    setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
+    setClients(prev => [...prev, data]); setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
+  }
+
+  // --- ALPHABETICAL SORTING ---
+  const ptClients = clients
+    .filter(c => c.name !== 'Michelle appointment' && c.type !== 'ita_job' && c.type !== 'extra')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const itaClients = clients
+    .filter(c => c.type === 'ita_job')
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  // Dropdown UI Style Helpers
+  function getDropdownStyle(activeId: string | null, list: Client[]) {
+      const c = list.find(x => x.id === activeId);
+      if (!c) return "bg-gray-50 text-gray-500 border-gray-200";
+      if (c.sessions_remaining < 0) return "bg-red-50 text-red-700 border-red-300";
+      if (c.sessions_remaining > 0) return "bg-green-50 text-green-700 border-green-300";
+      if (c.type === 'ita_job') return "bg-[#dcfce7] text-[#166534] border-[#bbf7d0]";
+      return "bg-[#eef2f6] text-[#0160C9] border-[#0160C9]";
   }
 
   if (loading && bookings.length === 0) return <div className="h-screen flex items-center justify-center font-bold text-[#16202e]">Loading PTLab...</div>;
-
-  const ptClients = clients.filter(c => c.name !== 'Michelle appointment' && c.type !== 'ita_job' && c.type !== 'extra');
-  const itaClients = clients.filter(c => c.type === 'ita_job');
 
   return (
     <main className="h-screen w-full flex flex-col font-sans overflow-hidden" style={{ backgroundColor: PTLAB.bg, color: PTLAB.navy }}>
@@ -511,146 +515,138 @@ export default function PTLabScheduler() {
       <style dangerouslySetInnerHTML={{__html: `
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        select { -webkit-appearance: none; appearance: none; }
       `}} />
 
+      {/* --- NEW REDESIGNED HEADER --- */}
       <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col gap-3 shrink-0 relative">
          
-         <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 w-full">
-            <div className="flex items-center gap-2 overflow-x-auto hide-scrollbar w-full xl:w-auto pb-1 xl:pb-0">
-                <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showIntroPanel ? PTLAB.mainBlue : PTLAB.white, color: showIntroPanel ? PTLAB.white : PTLAB.mainBlue, borderColor: PTLAB.mainBlue }}>+ Intro Pack</button>
-                <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: showRegularPanel ? PTLAB.navy : PTLAB.white, color: showRegularPanel ? PTLAB.white : PTLAB.navy, borderColor: PTLAB.navy }}>+ Regular PT</button>
-                <Link href="/report" className="shrink-0"><button className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200 whitespace-nowrap">PT Reports</button></Link>
-                
-                <div className="h-5 w-[1px] bg-gray-300 mx-1 shrink-0 hidden md:block"></div>
-                
-                <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowRegularPanel(false); setShowExtraPanel(false);}} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-50 text-green-700 border-green-400 hover:bg-green-100 whitespace-nowrap">+ The Ita Job</button>
-                <Link href="/ita-report" className="shrink-0"><button className="w-full px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-green-100 text-green-800 border-green-300 hover:bg-green-200 whitespace-nowrap">Ita Reports</button></Link>
-                
-                <div className="h-5 w-[1px] bg-gray-300 mx-1 shrink-0 hidden md:block"></div>
-                
-                <button onClick={() => {
-                    if (selected.size === 0) {
-                        alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it.");
-                    } else {
-                        setShowExtraPanel(true); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false);
-                    }
-                }} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100 whitespace-nowrap">+ Extra</button>
-                
-                <div className="h-5 w-[1px] bg-gray-300 mx-1 shrink-0 hidden md:block"></div>
-                
-                <button onClick={activateMichelle} className="shrink-0 px-4 py-1.5 rounded-full text-[11px] font-bold border transition-colors whitespace-nowrap" style={{ backgroundColor: isMichelleActive ? "#ef4444" : "transparent", color: isMichelleActive ? "white" : "#ef4444", borderColor: "#ef4444" }}>Michelle</button>
+         {/* 1. THE 3 COLUMNS OF BUTTONS */}
+         <div className="grid grid-cols-3 gap-2 w-full">
+            
+            {/* Col 1: PTLab */}
+            <div className="flex flex-col gap-2">
+               <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-white text-[#0160C9] border-[#0160C9] hover:bg-blue-50">+ Intro Pack</button>
+               <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-[#16202e] text-white border-[#16202e]">+ Regular PT</button>
+               <Link href="/report" className="w-full"><button className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">PT Reports</button></Link>
             </div>
 
-            <div className="flex items-center justify-between w-full xl:w-auto gap-4 shrink-0">
-                 {!hasCurrentWeekBookings && !loading && (
-                     <button 
-                         onClick={duplicatePreviousWeek}
-                         className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors whitespace-nowrap shadow-sm"
-                     >
-                         📋 Copy Last Week
-                     </button>
-                 )}
-                 <div className="flex items-center gap-2">
-                     <button onClick={() => setWeekOffset(prev => prev - 1)} className="p-2 hover:bg-gray-100 rounded-full text-lg font-bold">‹</button>
-                     <span className="text-sm font-bold w-24 text-center">{weekDates[0].getDate()} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}</span>
-                     <button onClick={() => setWeekOffset(prev => prev + 1)} className="p-2 hover:bg-gray-100 rounded-full text-lg font-bold">›</button>
-                 </div>
-                 <div className="hidden md:block w-9 h-9 relative rounded-full overflow-hidden border border-gray-200 shrink-0"><Image src="/logo.jpg" alt="PTLab" fill className="object-cover" /></div>
+            {/* Col 2: Ita Job */}
+            <div className="flex flex-col gap-2">
+               <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowRegularPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-50 text-green-700 border-green-400 hover:bg-green-100">+ The Ita Job</button>
+               <Link href="/ita-report" className="w-full"><button className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Ita Reports</button></Link>
+               <div className="flex-1 flex justify-center items-center"><Image src="/logo.jpg" alt="PTLab" width={32} height={32} className="rounded-full border border-gray-200 hidden sm:block" /></div>
+            </div>
+
+            {/* Col 3: Extras */}
+            <div className="flex flex-col gap-2">
+               <button onClick={activateMichelle} className={`w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap ${isMichelleActive ? "bg-red-500 text-white border-red-500" : "bg-white text-red-500 border-red-500"}`}>Michelle</button>
+               <button onClick={() => {
+                   if (selected.size === 0) { alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it."); } 
+                   else { setShowExtraPanel(true); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false); }
+               }} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
             </div>
          </div>
 
-         {/* --- NEW DROPDOWN CLIENT SELECTORS --- */}
-         <div className="flex flex-col gap-3 w-full border-t border-gray-100 pt-3">
+         {/* 2. DATE NAVIGATION & COPY WEEK */}
+         <div className="flex items-center justify-between w-full border-t border-gray-100 pt-3">
+            {!hasCurrentWeekBookings && !loading ? (
+                <button onClick={duplicatePreviousWeek} className="px-2 sm:px-3 py-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm shrink-0">
+                    📋 Copy Week
+                </button>
+            ) : <div className="w-20 sm:w-24 shrink-0"></div>}
             
-            {/* PTLAB ROW */}
-            <div className="flex items-center gap-2 w-full">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest w-14 shrink-0 text-right">PTLab</span>
-                <div className="flex-1 relative">
-                    <select
-                        className="w-full bg-white border border-gray-300 text-[#16202e] text-sm font-bold rounded-xl pl-3 pr-8 py-2.5 outline-none focus:border-[#0160C9] appearance-none shadow-sm cursor-pointer"
-                        value={(!activeExtraActivity && activeClientObj && activeClientObj.type !== 'ita_job' && activeClientObj.name !== 'Michelle appointment') ? activeClientObj.id : ""}
-                        onChange={(e) => {
-                            if (e.target.value) {
-                                setActiveClientId(e.target.value);
-                                setActiveExtraActivity(null);
-                                setSelected(new Set());
-                                setShowPaymentMenu(null);
-                            }
-                        }}
-                    >
-                        <option value="" disabled>Select PTLab Client...</option>
-                        {ptClients.map(c => (
-                            <option key={c.id} value={c.id}>
-                                {c.name} (Bal: {c.sessions_remaining})
-                            </option>
-                        ))}
-                    </select>
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400 text-xs">▼</div>
-                </div>
+            <div className="flex items-center gap-2 sm:gap-4">
+                <button onClick={() => setWeekOffset(prev => prev - 1)} className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-lg font-bold">‹</button>
+                <span className="text-xs sm:text-sm font-bold w-24 text-center whitespace-nowrap">{weekDates[0].getDate()} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}</span>
+                <button onClick={() => setWeekOffset(prev => prev + 1)} className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-lg font-bold">›</button>
+            </div>
+            
+            <div className="w-20 sm:w-24 shrink-0"></div>
+         </div>
 
-                {(!activeExtraActivity && activeClientObj && activeClientObj.type !== 'ita_job' && activeClientObj.name !== 'Michelle appointment') && (
-                    <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in zoom-in duration-200">
-                        <button onClick={() => setShowPaymentMenu(activeClientObj.id)} className="w-10 h-10 bg-green-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-green-600 transition-colors text-sm" title="Add Payment">$</button>
-                        <button onClick={() => archiveClient(activeClientObj.id, activeClientObj.name)} className="w-10 h-10 bg-red-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors text-sm" title="Archive Client">✕</button>
-                    </div>
-                )}
+         {/* 3. CLIENT DROPDOWNS */}
+         <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
+            
+            {/* PTLab Select Row */}
+            <div className="flex items-center gap-2">
+               <span className="text-[10px] font-black text-gray-400 uppercase w-12 text-right shrink-0">PTLab</span>
+               <div className="relative flex-1">
+                   <select 
+                       value={ptClients.some(c => c.id === activeClientId) ? activeClientId! : ""}
+                       onChange={e => { setActiveClientId(e.target.value); setActiveExtraActivity(null); setShowPaymentMenu(null); }}
+                       className={`w-full p-2.5 rounded-lg text-sm font-bold border outline-none truncate pr-8 ${getDropdownStyle(activeClientId, ptClients)}`}
+                   >
+                       <option value="" disabled>Select PTLab Client...</option>
+                       {ptClients.map(c => {
+                           const isOwing = c.sessions_remaining < 0;
+                           const isCredit = c.sessions_remaining > 0;
+                           return (
+                               <option key={c.id} value={c.id} className={isOwing ? 'text-red-600 font-bold' : isCredit ? 'text-green-600 font-bold' : 'text-gray-800'}>
+                                   {isOwing ? '🔴 ' : isCredit ? '🟢 ' : ''}{c.name} ({c.sessions_remaining})
+                               </option>
+                           );
+                       })}
+                   </select>
+                   <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[10px]">▼</span>
+               </div>
+               {/* Action Buttons */}
+               {ptClients.some(c => c.id === activeClientId) && (
+                   <div className="flex gap-1 shrink-0">
+                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-10 h-10 bg-green-500 text-white rounded-lg font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
+                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-10 h-10 bg-red-500 text-white rounded-lg font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
+                   </div>
+               )}
             </div>
 
-            {/* ITA JOB ROW */}
+            {/* Ita Job Select Row */}
             {itaClients.length > 0 && (
-                <div className="flex items-center gap-2 w-full pt-1 border-t border-gray-50">
-                    <span className="text-[10px] font-black text-green-600 uppercase tracking-widest w-14 shrink-0 text-right">Ita Job</span>
-                    <div className="flex-1 relative">
-                        <select
-                            className="w-full bg-green-50 border border-green-200 text-green-800 text-sm font-bold rounded-xl pl-3 pr-8 py-2.5 outline-none focus:border-green-500 appearance-none shadow-sm cursor-pointer"
-                            value={(!activeExtraActivity && activeClientObj && activeClientObj.type === 'ita_job') ? activeClientObj.id : ""}
-                            onChange={(e) => {
-                                if (e.target.value) {
-                                    setActiveClientId(e.target.value);
-                                    setActiveExtraActivity(null);
-                                    setSelected(new Set());
-                                    setShowPaymentMenu(null);
-                                }
-                            }}
-                        >
-                            <option value="" disabled>Select Ita Job Client...</option>
-                            {itaClients.map(c => (
-                                <option key={c.id} value={c.id}>
-                                    {c.name} (Bal: {c.sessions_remaining} hrs)
-                                </option>
-                            ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-green-600 text-xs">▼</div>
-                    </div>
-
-                    {(!activeExtraActivity && activeClientObj && activeClientObj.type === 'ita_job') && (
-                        <div className="flex items-center gap-1.5 shrink-0 animate-in fade-in zoom-in duration-200">
-                            <button onClick={() => setShowPaymentMenu(activeClientObj.id)} className="w-10 h-10 bg-green-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-green-600 transition-colors text-sm" title="Log Payment">$</button>
-                            <button onClick={() => archiveClient(activeClientObj.id, activeClientObj.name)} className="w-10 h-10 bg-red-500 rounded-xl text-white font-bold flex items-center justify-center shadow-sm hover:bg-red-600 transition-colors text-sm" title="Archive Client">✕</button>
-                        </div>
-                    )}
-                </div>
+            <div className="flex items-center gap-2">
+               <span className="text-[10px] font-black text-green-600 uppercase w-12 text-right shrink-0">Ita Job</span>
+               <div className="relative flex-1">
+                   <select 
+                       value={itaClients.some(c => c.id === activeClientId) ? activeClientId! : ""}
+                       onChange={e => { setActiveClientId(e.target.value); setActiveExtraActivity(null); setShowPaymentMenu(null); }}
+                       className={`w-full p-2.5 rounded-lg text-sm font-bold border outline-none truncate pr-8 ${getDropdownStyle(activeClientId, itaClients)}`}
+                   >
+                       <option value="" disabled>Select Ita Job...</option>
+                       {itaClients.map(c => {
+                           const isOwing = c.sessions_remaining < 0;
+                           const isCredit = c.sessions_remaining > 0;
+                           return (
+                               <option key={c.id} value={c.id} className={isOwing ? 'text-red-600 font-bold' : isCredit ? 'text-green-600 font-bold' : 'text-gray-800'}>
+                                   {isOwing ? '🔴 ' : isCredit ? '🟢 ' : ''}{c.name} ({c.sessions_remaining} hrs)
+                               </option>
+                           );
+                       })}
+                   </select>
+                   <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] text-green-800">▼</span>
+               </div>
+               {/* Action Buttons */}
+               {itaClients.some(c => c.id === activeClientId) && (
+                   <div className="flex gap-1 shrink-0">
+                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-10 h-10 bg-green-500 text-white rounded-lg font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
+                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-10 h-10 bg-red-500 text-white rounded-lg font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
+                   </div>
+               )}
+            </div>
             )}
 
-            {/* EXTRA ROW */}
+            {/* Active Extra Display */}
             {activeExtraActivity && (
-                <div className="flex items-center gap-2 w-full pt-1 border-t border-gray-50">
-                    <span className="text-[10px] font-black text-yellow-600 uppercase tracking-widest w-14 shrink-0 text-right">Extra</span>
-                    <div className="flex-1">
-                        <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="w-full px-4 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap truncate text-left shadow-sm"
-                            style={{ backgroundColor: "#fef08a", color: "#a16207", border: "1px solid #fde047" }}>
-                            {activeExtraActivity} (Click to Cancel)
-                        </button>
-                    </div>
+                <div className="flex items-center gap-2">
+                   <span className="text-[10px] font-black text-yellow-600 uppercase w-12 text-right shrink-0">Extra</span>
+                   <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-yellow-500 text-left shadow-sm">
+                       {activeExtraActivity} (Tap to Cancel)
+                   </button>
                 </div>
             )}
-
          </div>
       </header>
 
       {/* FLOATING ACTION PANELS */}
       {showIntroPanel && (
-        <div className="px-4 pb-2 absolute top-24 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW INTRO PACK:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={introName} onChange={e => setIntroName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addIntroClient()} />
@@ -660,7 +656,7 @@ export default function PTLabScheduler() {
       )}
 
       {showRegularPanel && (
-        <div className="px-4 pb-2 absolute top-24 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW REGULAR PT:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={regularName} onChange={e => setRegularName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRegularClient()} />
@@ -670,7 +666,7 @@ export default function PTLabScheduler() {
       )}
 
       {showItaPanel && (
-        <div className="px-4 pb-2 absolute top-24 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-green-50 p-3 rounded-xl shadow-2xl border border-green-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-green-700">NEW ITA JOB:</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-green-100" placeholder="Job/Client Name..." value={itaName} onChange={e => setItaName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItaClient()} />
@@ -680,7 +676,7 @@ export default function PTLabScheduler() {
       )}
 
       {showExtraPanel && (
-        <div className="px-4 pb-2 absolute top-24 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-yellow-50 p-3 rounded-xl shadow-2xl border border-yellow-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-yellow-700">BOOKING EXTRA ({selected.size} slots):</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-yellow-100" placeholder="e.g. Doctor, Meeting..." value={extraInput} onChange={e => setExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && startExtraBooking()} />
