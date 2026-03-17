@@ -518,64 +518,43 @@ export default function PTLabScheduler() {
         select { -webkit-appearance: none; appearance: none; }
       `}} />
 
-      {/* --- NEW REDESIGNED HEADER --- */}
-      <header className="px-3 py-3 md:px-4 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col gap-3 shrink-0 relative">
+      {/* --- SUPER COMPACT HEADER --- */}
+      <header className="px-2 py-2 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col gap-2 shrink-0 relative">
          
-         {/* 1. THE 3 COLUMNS OF BUTTONS */}
-         <div className="grid grid-cols-3 gap-2 w-full">
-            
-            {/* Col 1: PTLab */}
-            <div className="flex flex-col gap-2">
-               <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-white text-[#0160C9] border-[#0160C9] hover:bg-blue-50">+ Intro Pack</button>
-               <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-[#16202e] text-white border-[#16202e]">+ Regular PT</button>
-               <Link href="/report" className="w-full"><button className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">PT Reports</button></Link>
+         {/* 1. COMPACT BUTTONS GRID */}
+         <div className="grid grid-cols-3 gap-1.5 w-full">
+            <div className="flex flex-col gap-1.5">
+               <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-white text-[#0160C9] border-[#0160C9] hover:bg-blue-50">+ Intro</button>
+               <button onClick={() => {setShowRegularPanel(!showRegularPanel); setShowIntroPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-[#16202e] text-white border-[#16202e]">+ Regular</button>
+               <Link href="/report" className="w-full"><button className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-gray-100 text-gray-600 border-gray-300 hover:bg-gray-200">PT Reports</button></Link>
             </div>
 
-            {/* Col 2: Ita Job */}
-            <div className="flex flex-col gap-2">
-               <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowRegularPanel(false); setShowExtraPanel(false);}} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-50 text-green-700 border-green-400 hover:bg-green-100">+ The Ita Job</button>
-               <Link href="/ita-report" className="w-full"><button className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Ita Reports</button></Link>
-               <div className="flex-1 flex justify-center items-center"><Image src="/logo.jpg" alt="PTLab" width={32} height={32} className="rounded-full border border-gray-200 hidden sm:block" /></div>
+            <div className="flex flex-col gap-1.5">
+               <button onClick={() => {setShowItaPanel(!showItaPanel); setShowIntroPanel(false); setShowRegularPanel(false); setShowExtraPanel(false);}} className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-50 text-green-700 border-green-400 hover:bg-green-100">+ Ita Job</button>
+               <Link href="/ita-report" className="w-full"><button className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-green-100 text-green-800 border-green-300 hover:bg-green-200">Ita Reports</button></Link>
+               <div className="flex-1 flex justify-center items-center"><Image src="/logo.jpg" alt="PTLab" width={28} height={28} className="rounded-full border border-gray-200 hidden sm:block" /></div>
             </div>
 
-            {/* Col 3: Extras */}
-            <div className="flex flex-col gap-2">
-               <button onClick={activateMichelle} className={`w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap ${isMichelleActive ? "bg-red-500 text-white border-red-500" : "bg-white text-red-500 border-red-500"}`}>Michelle</button>
+            <div className="flex flex-col gap-1.5">
+               <button onClick={activateMichelle} className={`w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap ${isMichelleActive ? "bg-red-500 text-white border-red-500" : "bg-white text-red-500 border-red-500"}`}>Michelle</button>
                <button onClick={() => {
                    if (selected.size === 0) { alert("Please click on the calendar to select time slots first, then click '+ Extra' to name it."); } 
                    else { setShowExtraPanel(true); setShowIntroPanel(false); setShowRegularPanel(false); setShowItaPanel(false); }
-               }} className="w-full py-2 rounded-lg text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
+               }} className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-yellow-50 text-yellow-700 border-yellow-400 hover:bg-yellow-100">+ Extra</button>
             </div>
          </div>
 
-         {/* 2. DATE NAVIGATION & COPY WEEK */}
-         <div className="flex items-center justify-between w-full border-t border-gray-100 pt-3">
-            {!hasCurrentWeekBookings && !loading ? (
-                <button onClick={duplicatePreviousWeek} className="px-2 sm:px-3 py-2 text-[9px] sm:text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm shrink-0">
-                    📋 Copy Week
-                </button>
-            ) : <div className="w-20 sm:w-24 shrink-0"></div>}
+         {/* 2. SLIM DROPDOWNS ROW */}
+         <div className="flex flex-col gap-1.5 border-t border-gray-100 pt-2">
             
-            <div className="flex items-center gap-2 sm:gap-4">
-                <button onClick={() => setWeekOffset(prev => prev - 1)} className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-lg font-bold">‹</button>
-                <span className="text-xs sm:text-sm font-bold w-24 text-center whitespace-nowrap">{weekDates[0].getDate()} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}</span>
-                <button onClick={() => setWeekOffset(prev => prev + 1)} className="w-8 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-full text-lg font-bold">›</button>
-            </div>
-            
-            <div className="w-20 sm:w-24 shrink-0"></div>
-         </div>
-
-         {/* 3. CLIENT DROPDOWNS */}
-         <div className="flex flex-col gap-2 border-t border-gray-100 pt-3">
-            
-            {/* PTLab Select Row */}
-            <div className="flex items-center gap-2">
-               <span className="text-[10px] font-black text-gray-400 uppercase w-12 text-right shrink-0">PTLab</span>
+            {/* PTLab Dropdown */}
+            <div className="flex items-center gap-1.5">
+               <span className="text-[9px] font-black text-gray-400 uppercase w-10 text-right shrink-0 leading-tight">PT<br/>Lab</span>
                <div className="relative flex-1">
                    <select 
                        value={ptClients.some(c => c.id === activeClientId) ? activeClientId! : ""}
                        onChange={e => { setActiveClientId(e.target.value); setActiveExtraActivity(null); setShowPaymentMenu(null); }}
-                       className={`w-full p-2.5 rounded-lg text-sm font-bold border outline-none truncate pr-8 ${getDropdownStyle(activeClientId, ptClients)}`}
+                       className={`w-full py-1.5 pl-2 pr-6 rounded-md text-xs font-bold border outline-none truncate shadow-sm ${getDropdownStyle(activeClientId, ptClients)}`}
                    >
                        <option value="" disabled>Select PTLab Client...</option>
                        {ptClients.map(c => {
@@ -588,26 +567,25 @@ export default function PTLabScheduler() {
                            );
                        })}
                    </select>
-                   <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[10px]">▼</span>
+                   <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[8px]">▼</span>
                </div>
-               {/* Action Buttons */}
                {ptClients.some(c => c.id === activeClientId) && (
                    <div className="flex gap-1 shrink-0">
-                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-10 h-10 bg-green-500 text-white rounded-lg font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
-                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-10 h-10 bg-red-500 text-white rounded-lg font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
+                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-8 h-8 bg-green-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
+                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-8 h-8 bg-red-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
                    </div>
                )}
             </div>
 
-            {/* Ita Job Select Row */}
+            {/* Ita Job Dropdown */}
             {itaClients.length > 0 && (
-            <div className="flex items-center gap-2">
-               <span className="text-[10px] font-black text-green-600 uppercase w-12 text-right shrink-0">Ita Job</span>
+            <div className="flex items-center gap-1.5">
+               <span className="text-[9px] font-black text-green-600 uppercase w-10 text-right shrink-0 leading-tight">Ita<br/>Job</span>
                <div className="relative flex-1">
                    <select 
                        value={itaClients.some(c => c.id === activeClientId) ? activeClientId! : ""}
                        onChange={e => { setActiveClientId(e.target.value); setActiveExtraActivity(null); setShowPaymentMenu(null); }}
-                       className={`w-full p-2.5 rounded-lg text-sm font-bold border outline-none truncate pr-8 ${getDropdownStyle(activeClientId, itaClients)}`}
+                       className={`w-full py-1.5 pl-2 pr-6 rounded-md text-xs font-bold border outline-none truncate shadow-sm ${getDropdownStyle(activeClientId, itaClients)}`}
                    >
                        <option value="" disabled>Select Ita Job...</option>
                        {itaClients.map(c => {
@@ -620,13 +598,12 @@ export default function PTLabScheduler() {
                            );
                        })}
                    </select>
-                   <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[10px] text-green-800">▼</span>
+                   <span className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[8px] text-green-800">▼</span>
                </div>
-               {/* Action Buttons */}
                {itaClients.some(c => c.id === activeClientId) && (
                    <div className="flex gap-1 shrink-0">
-                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-10 h-10 bg-green-500 text-white rounded-lg font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
-                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-10 h-10 bg-red-500 text-white rounded-lg font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
+                       <button onClick={() => setShowPaymentMenu(activeClientId!)} className="w-8 h-8 bg-green-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-green-600 transition-colors">$</button>
+                       <button onClick={() => archiveClient(activeClientId!, activeClientObj!.name)} className="w-8 h-8 bg-red-500 text-white rounded-md text-xs font-bold shadow-sm hover:bg-red-600 transition-colors">✕</button>
                    </div>
                )}
             </div>
@@ -634,19 +611,38 @@ export default function PTLabScheduler() {
 
             {/* Active Extra Display */}
             {activeExtraActivity && (
-                <div className="flex items-center gap-2">
-                   <span className="text-[10px] font-black text-yellow-600 uppercase w-12 text-right shrink-0">Extra</span>
-                   <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="flex-1 px-4 py-2.5 rounded-lg text-sm font-bold text-white bg-yellow-500 text-left shadow-sm">
+                <div className="flex items-center gap-1.5">
+                   <span className="text-[9px] font-black text-yellow-600 uppercase w-10 text-right shrink-0">Extra</span>
+                   <button onClick={() => { setActiveExtraActivity(null); setSelected(new Set()); }} className="flex-1 py-1.5 pl-2 rounded-md text-xs font-bold text-white bg-yellow-500 text-left shadow-sm">
                        {activeExtraActivity} (Tap to Cancel)
                    </button>
                 </div>
             )}
          </div>
+
+         {/* 3. FULL WIDTH DATE NAV ROW */}
+         <div className="flex items-center justify-between w-full border-t border-gray-100 pt-2 mt-0.5">
+            <button onClick={() => setWeekOffset(prev => prev - 1)} className="w-12 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg text-lg font-bold text-[#16202e] shrink-0">‹</button>
+            
+            <div className="flex flex-col items-center flex-1">
+                <span className="text-sm font-black tracking-widest text-[#16202e] whitespace-nowrap">
+                    {weekDates[0].getDate()} {weekDates[0].toLocaleString('default', { month: 'short' })} - {weekDates[5].getDate()} {weekDates[5].toLocaleString('default', { month: 'short' })}
+                </span>
+                {!hasCurrentWeekBookings && !loading && (
+                    <button onClick={duplicatePreviousWeek} className="mt-1 px-3 py-1 text-[9px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md hover:bg-indigo-100 transition-colors shadow-sm">
+                        📋 Copy Last Week
+                    </button>
+                )}
+            </div>
+
+            <button onClick={() => setWeekOffset(prev => prev + 1)} className="w-12 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg text-lg font-bold text-[#16202e] shrink-0">›</button>
+         </div>
+
       </header>
 
       {/* FLOATING ACTION PANELS */}
       {showIntroPanel && (
-        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-36 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW INTRO PACK:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={introName} onChange={e => setIntroName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addIntroClient()} />
@@ -656,7 +652,7 @@ export default function PTLabScheduler() {
       )}
 
       {showRegularPanel && (
-        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-36 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-gray-400">NEW REGULAR PT:</span>
             <input autoFocus className="flex-1 bg-gray-50 px-3 py-2 rounded-lg text-sm outline-none" placeholder="Name..." value={regularName} onChange={e => setRegularName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addRegularClient()} />
@@ -666,7 +662,7 @@ export default function PTLabScheduler() {
       )}
 
       {showItaPanel && (
-        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-36 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-green-50 p-3 rounded-xl shadow-2xl border border-green-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-green-700">NEW ITA JOB:</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-green-100" placeholder="Job/Client Name..." value={itaName} onChange={e => setItaName(e.target.value)} onKeyDown={e => e.key === 'Enter' && addItaClient()} />
@@ -676,7 +672,7 @@ export default function PTLabScheduler() {
       )}
 
       {showExtraPanel && (
-        <div className="px-4 pb-2 absolute top-40 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
+        <div className="px-4 pb-2 absolute top-36 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-yellow-50 p-3 rounded-xl shadow-2xl border border-yellow-200 flex gap-2 max-w-md mx-auto items-center mt-2">
             <span className="text-xs font-bold text-yellow-700">BOOKING EXTRA ({selected.size} slots):</span>
             <input autoFocus className="flex-1 bg-white px-3 py-2 rounded-lg text-sm outline-none border border-yellow-100" placeholder="e.g. Doctor, Meeting..." value={extraInput} onChange={e => setExtraInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && startExtraBooking()} />
@@ -685,9 +681,11 @@ export default function PTLabScheduler() {
         </div>
       )}
 
-      <section className="flex-1 p-2 md:p-4 min-h-0 relative">
-        <div className="h-full bg-white rounded-2xl shadow-sm border border-gray-200 overflow-auto hide-scrollbar relative">
-          <div className="min-w-[800px] flex flex-col relative">
+      <section className="flex-1 p-1 md:p-4 min-h-0 relative">
+        <div className="h-full bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-auto hide-scrollbar relative">
+          
+          {/* WIDER CALENDAR GRID TO PREVENT TEXT SQUISHING */}
+          <div className="min-w-[1000px] flex flex-col relative">
             
             <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-40 sticky top-0 shadow-sm">
                 <div className="sticky left-0 z-50 bg-white border-r border-gray-100 shadow-[2px_0_4px_rgba(0,0,0,0.03)]"></div> 
@@ -922,6 +920,7 @@ export default function PTLabScheduler() {
             );
         })()}
 
+        {/* FINALIZE ITA JOB MODAL */}
         {itaFinalizePrompt?.isOpen && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm p-4">
                 <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
@@ -990,17 +989,17 @@ export default function PTLabScheduler() {
         )}
       </section>
 
-      <footer className="p-3 md:p-4 pt-0 shrink-0 flex gap-4">
+      <footer className="p-2 md:p-4 pt-0 shrink-0 flex gap-4">
         {selected.size > 0 && !showExtraPanel ? (
-            <button onClick={confirm} className={`w-full py-3 md:py-4 rounded-xl text-base md:text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2`} style={{ backgroundColor: isActiveItaJob ? "#22c55e" : activeExtraActivity ? "#eab308" : PTLAB.mainBlue, color: PTLAB.white }}>
+            <button onClick={confirm} className={`w-full py-3 rounded-xl text-base md:text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2`} style={{ backgroundColor: isActiveItaJob ? "#22c55e" : activeExtraActivity ? "#eab308" : PTLAB.mainBlue, color: PTLAB.white }}>
                 Confirm {selected.size} {isActiveItaJob || activeExtraActivity ? "Blocks" : "Sessions"}
             </button>
         ) : selectedDaysToFinalize.size > 0 ? (
-            <button onClick={finalizeSelectedDays} className="w-full py-3 md:py-4 rounded-xl text-base md:text-lg font-bold shadow-sm border-2 transition-all flex items-center justify-center gap-2 bg-green-50 text-green-700 border-green-400 hover:bg-green-100">
+            <button onClick={finalizeSelectedDays} className="w-full py-3 rounded-xl text-base md:text-lg font-bold shadow-sm border-2 transition-all flex items-center justify-center gap-2 bg-green-50 text-green-700 border-green-400 hover:bg-green-100">
                 ✅ Finalize {selectedDaysToFinalize.size} Selected Day(s)
             </button>
         ) : (
-            <div className="w-full py-3 md:py-4 rounded-xl text-xs md:text-sm font-bold border-2 flex items-center justify-center text-gray-400 border-gray-200 bg-gray-50 text-center px-2">
+            <div className="w-full py-3 rounded-xl text-xs md:text-sm font-bold border flex items-center justify-center text-gray-400 border-gray-200 bg-gray-50 text-center px-2 shadow-inner">
                 👆 Click a Day Header (e.g. Mon) to finalize attendance
             </div>
         )}
