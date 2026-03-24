@@ -18,7 +18,6 @@ type Client = {
 };
 type Booking = { id: string; slot_key: string; client_id: string; processed: boolean; paid?: boolean };
 
-// NEW: Universal Line Item Type
 type LineItem = {
     id: string;
     desc: string;
@@ -36,7 +35,7 @@ export default function ItaReportDashboard() {
   // Invoice State
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
   const [invoiceBookings, setInvoiceBookings] = useState<Booking[]>([]);
-  const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]); // Unified editable rows
+  const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]);
   const [unitPrice, setUnitPrice] = useState<number>(70);
   
   const [newCustomDesc, setNewCustomDesc] = useState("");
@@ -72,7 +71,6 @@ export default function ItaReportDashboard() {
 
     setInvoiceBookings(data || []);
     
-    // Fetch Next Invoice Number
     setHasIncremented(false);
     const { data: settingsData } = await supabase.from('settings').select('value').eq('id', 'next_invoice').single();
     setInvoiceNumber(settingsData ? settingsData.value : 205);
@@ -80,7 +78,6 @@ export default function ItaReportDashboard() {
     setInvoiceClient(client);
     setUnitPrice(70);
     
-    // BUILD INITIAL EDITABLE LINE ITEMS
     const unpaidHours = Math.abs(client.sessions_remaining);
     const totalBlocks = (data || []).length;
     let remainingHoursToAllocate = unpaidHours;
@@ -111,7 +108,6 @@ export default function ItaReportDashboard() {
     setLoading(false);
   }
 
-  // --- EDITABLE INVOICE FUNCTIONS ---
   function updateLine(id: string, field: keyof LineItem, value: any) {
       setInvoiceLines(prev => prev.map(line => line.id === id ? { ...line, [field]: value } : line));
   }
@@ -132,7 +128,6 @@ export default function ItaReportDashboard() {
 
   function handleUnitPriceChange(newRate: number) {
       setUnitPrice(newRate);
-      // Auto-update all labour items if the global rate changes
       setInvoiceLines(prev => prev.map(line => line.isLabour ? { ...line, rate: newRate } : line));
   }
 
@@ -145,7 +140,6 @@ export default function ItaReportDashboard() {
       setNewCustomDate(new Date().toISOString().split('T')[0]);
   }
 
-  // --- BILLING ADJUSTMENT (ROUNDING) ---
   function addAutoRounding() {
       const currentTotal = invoiceLines.reduce((sum, line) => sum + (line.qty * line.rate), 0);
       const remainder = currentTotal % 10;
@@ -176,17 +170,11 @@ export default function ItaReportDashboard() {
       }
   }
 
-  // ==========================================
-  // INVOICE CALCULATIONS & SAFE VARIABLES
-  // ==========================================
   const totalDue = invoiceLines.reduce((sum, item) => sum + (item.qty * item.rate), 0);
   const todayStr = new Date().toLocaleDateString('en-AU');
   const displayName: string = String(invoiceClient?.billing_name || invoiceClient?.name || "Client");
   const displayEmail: string = String(invoiceClient?.email || "No email on file");
 
-  // ==========================================
-  // ACTION BUTTONS
-  // ==========================================
   function sendTextInvoice() {
       if (!invoiceClient || !invoiceClient.phone) { alert("No phone number found for this client!"); return; }
       markInvoiceAsIssued();
@@ -275,6 +263,7 @@ export default function ItaReportDashboard() {
             #printable-invoice, #printable-invoice * { visibility: visible; }
             .no-print { display: none !important; }
             .avoid-break { break-inside: avoid; page-break-inside: avoid; }
+            input { border: none !important; background: transparent !important; }
         }
       `}} />
 
@@ -291,7 +280,7 @@ export default function ItaReportDashboard() {
             <div className="px-6 py-4 border-b border-green-100 bg-white flex justify-between items-center"><h2 className="text-lg font-bold text-green-800">Invoice Tracking</h2></div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-green-600 bg-green-50/30"><th className="px-6 py-4 font-bold">Client / Job Name</th><th className="px-6 py-4 font-bold">Unpaid Hours</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
+                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-green-600 bg-green-50/30"><th className="px-6 py-4 font-bold">Client / Job Name</th><th className="px-6 py-4 font-bold">Unpaid Hours</th><th className="px-6 py-4 font-bold text-center">All-Time Hrs</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
                     <tbody className="text-sm">
                         {clients.map(client => {
                             const unpaid = client.sessions_remaining < 0 ? Math.abs(client.sessions_remaining) : 0;
@@ -300,6 +289,7 @@ export default function ItaReportDashboard() {
                                 <tr key={client.id} className={`transition-colors border-b border-gray-50 ${isOwing ? 'bg-red-50/30 hover:bg-red-50/80' : 'hover:bg-green-50/30'}`}>
                                     <td className="px-6 py-5 font-bold text-base">{client.name}</td>
                                     <td className="px-6 py-5">{isOwing ? <span className="text-red-600 font-black text-lg">{unpaid} hrs</span> : <span className="text-gray-400 font-bold px-2 py-1 bg-gray-100 rounded text-xs">All Paid</span>}</td>
+                                    <td className="px-6 py-5 text-center font-bold text-gray-500">{client.historical_attended} hrs</td>
                                     <td className="px-6 py-5 text-center">{isOwing && <button onClick={() => openInvoice(client)} className="px-4 py-2 bg-white border-2 border-green-500 text-green-600 font-bold rounded-lg shadow-sm hover:bg-green-50 transition-colors text-xs uppercase tracking-wider">📄 Create</button>}</td>
                                     <td className="px-6 py-5 text-right">{isOwing && <button onClick={() => markInvoicePaid(client.id, client.name)} className="px-4 py-2 bg-green-500 text-white font-bold rounded-lg shadow hover:bg-green-600 transition-colors text-xs uppercase tracking-wider">✅ Mark Paid</button>}</td>
                                 </tr>
@@ -413,27 +403,22 @@ export default function ItaReportDashboard() {
                                     {invoiceLines.map(line => (
                                         <tr key={line.id} className="border-b border-gray-100 group relative hover:bg-green-50/30 transition-colors">
                                             
-                                            {/* AUTO-EXPANDING DESCRIPTION */}
                                             <td className="py-2 text-left align-top">
                                                 <div className="relative w-full">
-                                                    {/* Invisible block dictates height */}
                                                     <div className="invisible whitespace-pre-wrap break-words font-bold text-[#16202e] leading-tight pb-1 min-h-[24px]">
                                                         {line.desc || "."}
                                                     </div>
-                                                    {/* Interactive textarea overlays it */}
                                                     <textarea 
                                                         value={line.desc} 
                                                         onChange={e => updateLine(line.id, 'desc', e.target.value)} 
                                                         className="absolute inset-0 w-full h-full bg-transparent outline-none font-bold text-[#16202e] border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:hidden resize-none overflow-hidden leading-tight" 
                                                     />
-                                                    {/* Pure text block takes over when printing PDF */}
                                                     <div className="hidden print:block absolute inset-0 w-full h-full font-bold text-[#16202e] whitespace-pre-wrap break-words leading-tight">
                                                         {line.desc}
                                                     </div>
                                                 </div>
                                             </td>
 
-                                            {/* AUTO-EXPANDING DATE (For long date lists) */}
                                             <td className="py-2 text-center align-top">
                                                 <div className="relative w-full">
                                                     <div className="invisible whitespace-pre-wrap break-words text-xs leading-tight pb-1 min-h-[24px]">
@@ -450,7 +435,6 @@ export default function ItaReportDashboard() {
                                                 </div>
                                             </td>
 
-                                            {/* NUMERICAL FIELDS */}
                                             <td className="py-2 text-center align-top">
                                                 <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-green-500 transition-colors print:hidden" />
                                                 <span className="hidden print:block w-full text-center">{line.qty}</span>
@@ -464,7 +448,6 @@ export default function ItaReportDashboard() {
                                             <td className="py-2 text-right font-bold text-[#16202e] relative pr-2 align-top">
                                                 ${(line.qty * line.rate).toFixed(2)}
                                                 
-                                                {/* INVISIBLE DELETE BUTTON (Appears on Hover) */}
                                                 <button onClick={() => removeLine(line.id, line.isLabour ? line.date : undefined)} className="absolute -right-6 top-1 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
                                             </td>
                                         </tr>

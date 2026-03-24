@@ -51,7 +51,7 @@ export default function PTReportDashboard() {
   const [invoiceNumber, setInvoiceNumber] = useState<number>(0);
   const [hasIncremented, setHasIncremented] = useState<boolean>(false);
 
-  // NEW: Pre-Paid Package State
+  // Pre-Paid Package State
   const [showPackageModal, setShowPackageModal] = useState(false);
   const [pkgClientId, setPkgClientId] = useState("");
   const [pkgSessionCount, setPkgSessionCount] = useState(10);
@@ -102,7 +102,6 @@ export default function PTReportDashboard() {
     setLoading(false);
   }
 
-  // --- NEW: GENERATE UPFRONT PACKAGE INVOICE ---
   async function generatePackageInvoice() {
       if (!pkgClientId) {
           alert("Please select a client from the dropdown.");
@@ -326,7 +325,6 @@ export default function PTReportDashboard() {
         }
       `}} />
 
-      {/* HEADER WITH NEW BUTTON */}
       <div className="max-w-5xl mx-auto space-y-8">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -371,7 +369,7 @@ export default function PTReportDashboard() {
             <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center"><h2 className="text-lg font-bold">Regular Clients</h2><span className="text-xs font-bold px-2 py-1 bg-gray-200 rounded-full">{regularClients.length}</span></div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400"><th className="px-6 py-4 font-bold">Client Name</th><th className="px-6 py-4 font-bold">Status</th><th className="px-6 py-4 font-bold">Remaining</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
+                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400"><th className="px-6 py-4 font-bold">Client Name</th><th className="px-6 py-4 font-bold">Status</th><th className="px-6 py-4 font-bold">Remaining</th><th className="px-6 py-4 font-bold text-center">All-Time Billed</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
                     <tbody className="text-sm">
                         {regularClients.map(client => {
                             const isOwing = client.sessions_remaining < 0;
@@ -384,6 +382,7 @@ export default function PTReportDashboard() {
                                     </td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${style.badge}`}>{style.text}</span></td>
                                     <td className="px-6 py-4 font-bold text-lg">{client.sessions_remaining}</td>
+                                    <td className="px-6 py-4 text-center font-bold text-gray-500">{bookings.filter(b => b.client_id === client.id).length + client.historical_attended}</td>
                                     <td className="px-6 py-4 text-center">
                                         {isOwing && <button onClick={() => openInvoice(client)} className="px-4 py-1.5 bg-white border-2 border-[#0160C9] text-[#0160C9] font-bold rounded-lg shadow-sm hover:bg-blue-50 transition-colors text-xs uppercase tracking-wider">📄 Create</button>}
                                     </td>
@@ -398,11 +397,11 @@ export default function PTReportDashboard() {
             </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e border-t-4 border-t-orange-500 mt-8">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden text-[#16202e] border-t-4 border-t-orange-500 mt-8">
             <div className="px-6 py-4 border-b border-gray-100 bg-orange-50 flex justify-between items-center"><h2 className="text-lg font-bold text-orange-900">Intro Pack Clients</h2><span className="text-xs font-bold px-2 py-1 bg-orange-200 text-orange-900 rounded-full">{introClients.length}</span></div>
             <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
-                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400"><th className="px-6 py-4 font-bold">Client Name</th><th className="px-6 py-4 font-bold">Status</th><th className="px-6 py-4 font-bold">Remaining</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
+                    <thead><tr className="border-b border-gray-100 text-xs uppercase tracking-wider text-gray-400"><th className="px-6 py-4 font-bold">Client Name</th><th className="px-6 py-4 font-bold">Status</th><th className="px-6 py-4 font-bold">Remaining</th><th className="px-6 py-4 font-bold text-center">All-Time Billed</th><th className="px-6 py-4 font-bold text-center">Invoice</th><th className="px-6 py-4 font-bold text-right">Action</th></tr></thead>
                     <tbody className="text-sm">
                         {introClients.map(client => {
                             const isOwing = client.sessions_remaining < 0;
@@ -415,6 +414,7 @@ export default function PTReportDashboard() {
                                     </td>
                                     <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${style.badge}`}>{style.text}</span></td>
                                     <td className="px-6 py-4 font-bold text-lg">{client.sessions_remaining}</td>
+                                    <td className="px-6 py-4 text-center font-bold text-gray-500">{bookings.filter(b => b.client_id === client.id).length + client.historical_attended}</td>
                                     <td className="px-6 py-4 text-center">
                                         {isOwing && <button onClick={() => openInvoice(client)} className="px-4 py-1.5 bg-white border-2 border-orange-500 text-orange-600 font-bold rounded-lg shadow-sm hover:bg-orange-50 transition-colors text-xs uppercase tracking-wider">📄 Create</button>}
                                     </td>
@@ -430,7 +430,7 @@ export default function PTReportDashboard() {
         </div>
       </div>
 
-      {/* --- NEW: PRE-PAID PACKAGE MODAL --- */}
+      {/* --- PRE-PAID PACKAGE MODAL --- */}
       {showPackageModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4 backdrop-blur-sm" onClick={() => setShowPackageModal(false)}>
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95" onClick={(e) => e.stopPropagation()}>
@@ -514,7 +514,7 @@ export default function PTReportDashboard() {
                     </div>
                 </div>
 
-                {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE WITH AUTO-EXPAND) */}
+                {/* COMPACT PRINTABLE INVOICE */}
                 <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
                     <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                         
@@ -556,7 +556,6 @@ export default function PTReportDashboard() {
                             <tbody className="text-sm">
                                 {invoiceLines.map(line => (
                                     <tr key={line.id} className="border-b border-gray-50 group relative hover:bg-orange-50/50 transition-colors">
-                                        
                                         <td className="py-2 text-left align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words font-bold text-[#16202e] leading-tight pb-1 min-h-[24px]">
@@ -572,7 +571,6 @@ export default function PTReportDashboard() {
                                                 </div>
                                             </div>
                                         </td>
-
                                         <td className="py-2 text-center align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words text-xs leading-tight pb-1 min-h-[24px]">
@@ -588,7 +586,6 @@ export default function PTReportDashboard() {
                                                 </div>
                                             </div>
                                         </td>
-
                                         <td className="py-2 text-center align-top">
                                             <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden" />
                                             <span className="hidden print:block w-full text-center">{line.qty}</span>
@@ -601,7 +598,6 @@ export default function PTReportDashboard() {
                                         </td>
                                         <td className="py-2 text-right font-bold text-[#16202e] relative pr-2 align-top">
                                             ${(line.qty * line.rate).toFixed(2)}
-                                            
                                             <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
                                         </td>
                                     </tr>
