@@ -220,9 +220,24 @@ export default function PTReportDashboard() {
       const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #16202e;">
             <h1 style="color: #f05a28; margin-bottom: 5px;">Pro Training Lab</h1>
-            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 15px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
+            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 25px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
             
-            <p>Hi <strong>${displayName}</strong>,</p>
+            <table style="width: 100%; margin-bottom: 25px; font-size: 14px; line-height: 1.5;">
+                <tr>
+                    <td style="vertical-align: top;">
+                        <strong style="color: #666; font-size: 12px; text-transform: uppercase;">Billed To</strong><br>
+                        <strong>${displayName}</strong><br>
+                        ${invoiceClient.billing_address ? `<span style="color: #555;">${invoiceClient.billing_address}</span>` : ''}
+                    </td>
+                    <td style="text-align: right; vertical-align: top;">
+                        <strong style="color: #666; font-size: 12px; text-transform: uppercase;">Invoice Details</strong><br>
+                        <strong>Inv #:</strong> ${invoiceNumber}<br>
+                        <strong>Date:</strong> ${todayStr}
+                    </td>
+                </tr>
+            </table>
+
+            <p>Hi <strong>${displayName.split(' ')[0]}</strong>,</p>
             <p>Thank you for your hard work! Here is your latest invoice for <strong>$${totalDue.toFixed(2)}</strong>.</p>
             
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
@@ -514,7 +529,7 @@ export default function PTReportDashboard() {
                     </div>
                 </div>
 
-                {/* COMPACT PRINTABLE INVOICE */}
+                {/* COMPACT PRINTABLE INVOICE (LIVE EDITABLE WITH AUTO-EXPAND) */}
                 <div className="flex-1 p-4 bg-gray-100 overflow-y-auto" id="printable-invoice-container">
                     <div id="printable-invoice" className="bg-white mx-auto shadow-sm p-6 md:p-8 text-[#16202e] text-sm" style={{ width: '100%', maxWidth: '800px', fontFamily: 'Arial, sans-serif' }}>
                         
@@ -556,6 +571,7 @@ export default function PTReportDashboard() {
                             <tbody className="text-sm">
                                 {invoiceLines.map(line => (
                                     <tr key={line.id} className="border-b border-gray-50 group relative hover:bg-orange-50/50 transition-colors">
+                                        
                                         <td className="py-2 text-left align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words font-bold text-[#16202e] leading-tight pb-1 min-h-[24px]">
@@ -571,6 +587,7 @@ export default function PTReportDashboard() {
                                                 </div>
                                             </div>
                                         </td>
+
                                         <td className="py-2 text-center align-top">
                                             <div className="relative w-full">
                                                 <div className="invisible whitespace-pre-wrap break-words text-xs leading-tight pb-1 min-h-[24px]">
@@ -586,6 +603,7 @@ export default function PTReportDashboard() {
                                                 </div>
                                             </div>
                                         </td>
+
                                         <td className="py-2 text-center align-top">
                                             <input type="number" step="0.5" value={line.qty} onChange={e => updateLine(line.id, 'qty', Number(e.target.value))} className="w-16 text-center bg-transparent outline-none border-b border-transparent hover:border-gray-300 focus:border-orange-500 transition-colors print:hidden" />
                                             <span className="hidden print:block w-full text-center">{line.qty}</span>
@@ -598,6 +616,7 @@ export default function PTReportDashboard() {
                                         </td>
                                         <td className="py-2 text-right font-bold text-[#16202e] relative pr-2 align-top">
                                             ${(line.qty * line.rate).toFixed(2)}
+                                            
                                             <button onClick={() => removeLine(line.id, line.bookingId)} className="absolute -right-6 top-1 w-5 h-5 bg-red-100 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 no-print transition-opacity hover:bg-red-500 hover:text-white" title="Remove Line">✕</button>
                                         </td>
                                     </tr>

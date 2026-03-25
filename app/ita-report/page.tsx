@@ -193,9 +193,24 @@ export default function ItaReportDashboard() {
       const htmlBody = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #16202e;">
             <h1 style="color: #15803d; margin-bottom: 5px;">The Italian Job</h1>
-            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 15px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
+            <p style="font-size: 12px; color: #666; margin-top: 0; margin-bottom: 25px;">ABN: 18 812 166 780 &nbsp;|&nbsp; 14/1 Avalon Parade Avalon Beach 2107 NSW</p>
 
-            <p>Hi <strong>${displayName}</strong>,</p>
+            <table style="width: 100%; margin-bottom: 25px; font-size: 14px; line-height: 1.5;">
+                <tr>
+                    <td style="vertical-align: top;">
+                        <strong style="color: #666; font-size: 12px; text-transform: uppercase;">Billed To</strong><br>
+                        <strong>${displayName}</strong><br>
+                        ${invoiceClient.billing_address ? `<span style="color: #555;">${invoiceClient.billing_address}</span>` : ''}
+                    </td>
+                    <td style="text-align: right; vertical-align: top;">
+                        <strong style="color: #666; font-size: 12px; text-transform: uppercase;">Invoice Details</strong><br>
+                        <strong>Inv #:</strong> ${invoiceNumber}<br>
+                        <strong>Date:</strong> ${todayStr}
+                    </td>
+                </tr>
+            </table>
+
+            <p>Hi <strong>${displayName.split(' ')[0]}</strong>,</p>
             <p>Thank you for your business! Here is your latest invoice for <strong>$${totalDue.toFixed(2)}</strong>.</p>
             
             <table style="width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 15px;">
