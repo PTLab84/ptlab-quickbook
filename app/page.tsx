@@ -26,6 +26,17 @@ type Client = {
 type SlotKey = string;
 type Booking = { id: string; slotKey: SlotKey; clientId: string; processed: boolean };
 
+// NEW: Type for Bulk Deletion
+type BlockToDelete = {
+    keys: SlotKey[];
+    bookings: Booking[];
+    title: string;
+    clientType?: string;
+    isProcessed: boolean;
+    ownerId: string | null;
+    ownerType: "client" | "google";
+};
+
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const DEFAULT_START = "06:30"; 
 const DEFAULT_END = "23:00";
@@ -62,7 +73,10 @@ export default function PTLabScheduler() {
   const [clients, setClients] = useState<Client[]>([]);
   const [activeClientId, setActiveClientId] = useState<string | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  
   const [selected, setSelected] = useState<Set<SlotKey>>(new Set());
+  const [blocksToDelete, setBlocksToDelete] = useState<Map<string, BlockToDelete>>(new Map()); // NEW: Bulk Delete State
+  
   const [googleBusy, setGoogleBusy] = useState<Map<SlotKey, string>>(new Map());
   const [weekOffset, setWeekOffset] = useState(0); 
 
@@ -109,6 +123,7 @@ export default function PTLabScheduler() {
 
   useEffect(() => {
     setSelectedDaysToFinalize(new Set());
+    setBlocksToDelete(new Map());
     loadData();
   }, [weekOffset]); 
 
@@ -232,6 +247,7 @@ export default function PTLabScheduler() {
   }
 
   function toggleSelectKeys(keysToToggle: string[]) {
+    setBlocksToDelete(new Map()); // Clear delete selections if booking
     setSelected(prev => {
         const n = new Set(prev);
         if (n.has(keysToToggle[0])) {
@@ -240,6 +256,29 @@ export default function PTLabScheduler() {
             keysToToggle.forEach(k => n.add(k));
         }
         return n;
+    });
+  }
+
+  // --- NEW: TOGGLE BULK DELETE SELECTION ---
+  function toggleDeleteBlock(blockData: any) {
+    setSelected(new Set()); // Clear booking selections if deleting
+    setBlocksToDelete(prev => {
+        const next = new Map(prev);
+        const id = blockData.keys[0];
+        if (next.has(id)) {
+            next.delete(id);
+        } else {
+            next.set(id, {
+                keys: blockData.keys,
+                bookings: blockData.bookings,
+                title: blockData.title,
+                clientType: blockData.clientType,
+                isProcessed: blockData.isProcessed,
+                ownerId: blockData.ownerId,
+                ownerType: blockData.ownerType
+            });
+        }
+        return next;
     });
   }
 
@@ -323,6 +362,7 @@ export default function PTLabScheduler() {
     }
   }
 
+  // INDIVIDUAL DELETE (Double Click)
   async function cancelBookingSpan(keys: SlotKey[], bookingsToCancel: Booking[], clientName: string, clientType: string | undefined, isProcessed: boolean, clientId: string | null) {
     const paidWarning = isProcessed && clientType !== 'extra' ? "\n\n⚠️ NOTE: This session was already finalized." : "";
     if (!window.confirm(`Cancel ${keys.length} block(s) for ${clientName}?${paidWarning}`)) return; 
@@ -343,12 +383,56 @@ export default function PTLabScheduler() {
     }
   }
 
+  // INDIVIDUAL EXTERNAL DELETE (Double Click)
   async function cancelExternalBookingSpan(keys: SlotKey[], title: string) {
     if (!window.confirm(`Delete Google Calendar event: "${title}"?`)) return;
     setGoogleBusy(prev => { const next = new Map(prev); keys.forEach(k => next.delete(k)); return next; });
     for (const key of keys) {
         fetch('/api/sync', { method: 'DELETE', body: JSON.stringify({ slotKey: key, clientName: title }) }).catch(e => console.error(e));
     }
+  }
+
+  // --- NEW: BULK DELETE ACTION ---
+  async function executeBulkDelete() {
+    const hasProcessed = Array.from(blocksToDelete.values()).some(b => b.isProcessed && b.clientType !== 'extra');
+    const paidWarning = hasProcessed ? "\n\n⚠️ NOTE: Some of these sessions were already finalized." : "";
+    if (!window.confirm(`Are you sure you want to permanently delete ${blocksToDelete.size} appointment(s)?${paidWarning}`)) return;
+
+    setLoading(true);
+    const idsToRemove = new Set<string>();
+    const clientsToDelete = new Set<string>();
+    const googleEventsToDelete: {key: string, name: string}[] = [];
+
+    for (const block of Array.from(blocksToDelete.values())) {
+        if (block.ownerType === "client") {
+            block.bookings.forEach(b => idsToRemove.add(b.id));
+            if (block.clientType === 'extra' && block.ownerId) {
+                clientsToDelete.add(block.ownerId);
+            }
+            if (block.title !== 'Michelle appointment') {
+                const googleDelName = block.clientType === 'ita_job' ? `Ita Job: ${block.title}` : block.clientType === 'extra' ? `Extra: ${block.title}` : `PT: ${block.title}`;
+                block.keys.forEach(k => googleEventsToDelete.push({key: k, name: googleDelName}));
+            }
+        } else if (block.ownerType === "google") {
+            block.keys.forEach(k => googleEventsToDelete.push({key: k, name: block.title}));
+            setGoogleBusy(prev => { const next = new Map(prev); block.keys.forEach(key => next.delete(key)); return next; });
+        }
+    }
+
+    if (idsToRemove.size > 0) {
+        setBookings(prev => prev.filter(b => !idsToRemove.has(b.id)));
+        await supabase.from('bookings').delete().in('id', Array.from(idsToRemove));
+    }
+    if (clientsToDelete.size > 0) {
+        await supabase.from('clients').delete().in('id', Array.from(clientsToDelete));
+    }
+
+    for (const ev of googleEventsToDelete) {
+        fetch('/api/sync', { method: 'DELETE', body: JSON.stringify({ slotKey: ev.key, clientName: ev.name }) }).catch(e => console.error(e));
+    }
+
+    setBlocksToDelete(new Map());
+    setLoading(false);
   }
 
   async function logPayment(clientId: string, sessionModifier: number, clientName: string) {
@@ -488,7 +572,6 @@ export default function PTLabScheduler() {
     setClients(prev => [...prev, data]); setActiveClientId(data.id); setItaName(""); setShowItaPanel(false); setActiveExtraActivity(null);
   }
 
-  // --- ALPHABETICAL SORTING ---
   const ptClients = clients
     .filter(c => c.name !== 'Michelle appointment' && c.type !== 'ita_job' && c.type !== 'extra')
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -497,7 +580,6 @@ export default function PTLabScheduler() {
     .filter(c => c.type === 'ita_job')
     .sort((a, b) => a.name.localeCompare(b.name));
 
-  // Dropdown UI Style Helpers
   function getDropdownStyle(activeId: string | null, list: Client[]) {
       const c = list.find(x => x.id === activeId);
       if (!c) return "bg-gray-50 text-gray-500 border-gray-200";
@@ -518,10 +600,8 @@ export default function PTLabScheduler() {
         select { -webkit-appearance: none; appearance: none; }
       `}} />
 
-      {/* --- SUPER COMPACT HEADER --- */}
       <header className="px-2 py-2 border-b border-gray-200 bg-white shadow-sm z-10 flex flex-col gap-2 shrink-0 relative">
          
-         {/* 1. COMPACT BUTTONS GRID */}
          <div className="grid grid-cols-3 gap-1.5 w-full">
             <div className="flex flex-col gap-1.5">
                <button onClick={() => {setShowIntroPanel(!showIntroPanel); setShowRegularPanel(false); setShowItaPanel(false); setShowExtraPanel(false);}} className="w-full py-1.5 rounded-md text-[10px] sm:text-xs font-bold border transition-colors whitespace-nowrap bg-white text-[#0160C9] border-[#0160C9] hover:bg-blue-50">+ Intro</button>
@@ -544,10 +624,8 @@ export default function PTLabScheduler() {
             </div>
          </div>
 
-         {/* 2. SLIM DROPDOWNS ROW */}
          <div className="flex flex-col gap-1.5 border-t border-gray-100 pt-2">
             
-            {/* PTLab Dropdown */}
             <div className="flex items-center gap-1.5">
                <span className="text-[9px] font-black text-gray-400 uppercase w-10 text-right shrink-0 leading-tight">PT<br/>Lab</span>
                <div className="relative flex-1">
@@ -577,7 +655,6 @@ export default function PTLabScheduler() {
                )}
             </div>
 
-            {/* Ita Job Dropdown */}
             {itaClients.length > 0 && (
             <div className="flex items-center gap-1.5">
                <span className="text-[9px] font-black text-green-600 uppercase w-10 text-right shrink-0 leading-tight">Ita<br/>Job</span>
@@ -609,7 +686,6 @@ export default function PTLabScheduler() {
             </div>
             )}
 
-            {/* Active Extra Display */}
             {activeExtraActivity && (
                 <div className="flex items-center gap-1.5">
                    <span className="text-[9px] font-black text-yellow-600 uppercase w-10 text-right shrink-0">Extra</span>
@@ -620,7 +696,6 @@ export default function PTLabScheduler() {
             )}
          </div>
 
-         {/* 3. FULL WIDTH DATE NAV ROW */}
          <div className="flex items-center justify-between w-full border-t border-gray-100 pt-2 mt-0.5">
             <button onClick={() => setWeekOffset(prev => prev - 1)} className="w-12 h-8 flex items-center justify-center bg-gray-100 hover:bg-gray-200 rounded-lg text-lg font-bold text-[#16202e] shrink-0">‹</button>
             
@@ -640,7 +715,6 @@ export default function PTLabScheduler() {
 
       </header>
 
-      {/* FLOATING ACTION PANELS */}
       {showIntroPanel && (
         <div className="px-4 pb-2 absolute top-36 left-0 z-50 animate-in fade-in slide-in-from-top-2 w-full">
           <div className="bg-white p-3 rounded-xl shadow-2xl border border-gray-200 flex gap-2 max-w-md mx-auto items-center mt-2">
@@ -684,7 +758,6 @@ export default function PTLabScheduler() {
       <section className="flex-1 p-1 md:p-4 min-h-0 relative">
         <div className="h-full bg-white rounded-xl md:rounded-2xl shadow-sm border border-gray-200 overflow-auto hide-scrollbar relative">
           
-          {/* WIDER CALENDAR GRID TO PREVENT TEXT SQUISHING */}
           <div className="min-w-[1000px] flex flex-col relative">
             
             <div className="grid grid-cols-[60px_repeat(6,1fr)] bg-white border-b border-gray-100 z-40 sticky top-0 shadow-sm">
@@ -822,7 +895,10 @@ export default function PTLabScheduler() {
                                     );
                                 })}
 
-                                {dayBlocks.map(block => (
+                                {dayBlocks.map(block => {
+                                    const isMarkedForDelete = blocksToDelete.has(block.keys[0]);
+                                    
+                                    return (
                                     <div
                                         key={block.keys[0]}
                                         className="absolute overflow-hidden flex items-center justify-center m-[0px] shadow-sm transition-all"
@@ -832,14 +908,22 @@ export default function PTLabScheduler() {
                                             left: "2px",
                                             width: "calc(100% - 4px)",
                                             backgroundColor: block.bg,
-                                            border: block.blockBorder,
+                                            border: isMarkedForDelete ? "2px solid #ef4444" : block.blockBorder,
+                                            opacity: isMarkedForDelete ? 0.6 : 1,
                                             borderRadius: "6px",
                                             zIndex: 10,
-                                            cursor: block.ownerType === "selected" ? "pointer" : isMichelleActive ? "pointer" : "default"
+                                            cursor: "pointer"
                                         }}
-                                        onClick={() => {
-                                            if (block.ownerType === "selected") toggleSelectKeys(block.keys);
-                                            else if (isMichelleActive && block.ownerType !== "selected") toggleSelectKeys(block.keys);
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (block.ownerType === "selected") {
+                                                toggleSelectKeys(block.keys);
+                                            } else if (isMichelleActive && block.ownerType !== "selected") {
+                                                toggleSelectKeys(block.keys);
+                                            } else {
+                                                // Trigger the new Bulk Delete selection mode
+                                                toggleDeleteBlock(block);
+                                            }
                                         }}
                                         onDoubleClick={() => {
                                             if (block.ownerType === "client") cancelBookingSpan(block.keys, block.bookings, block.title, block.clientType, block.isProcessed, block.ownerId);
@@ -851,10 +935,10 @@ export default function PTLabScheduler() {
                                             style={{ color: block.color }}
                                             title={block.title}
                                         >
-                                            {block.title}
+                                            {isMarkedForDelete ? "🗑️ " : ""}{block.title}
                                         </span>
                                     </div>
-                                ))}
+                                )})}
 
                                 {michelleBlocks.map(mBlock => (
                                     <div
@@ -882,7 +966,6 @@ export default function PTLabScheduler() {
           </div>
         </div>
 
-        {/* SHARED PAYMENT MENU MODAL */}
         {showPaymentMenu && (() => {
             const client = clients.find(c => c.id === showPaymentMenu);
             if (!client) return null;
@@ -920,7 +1003,6 @@ export default function PTLabScheduler() {
             );
         })()}
 
-        {/* FINALIZE ITA JOB MODAL */}
         {itaFinalizePrompt?.isOpen && (
             <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-50 rounded-2xl backdrop-blur-sm p-4">
                 <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-gray-100 animate-in fade-in zoom-in-95 duration-200">
@@ -989,7 +1071,16 @@ export default function PTLabScheduler() {
         )}
       </section>
 
-      <footer className="p-2 md:p-4 pt-0 shrink-0 flex gap-4">
+      {/* FOOTER CONTROLS */}
+      <footer className="p-2 md:p-4 pt-0 shrink-0 flex flex-col gap-2">
+        
+        {/* NEW: BULK DELETE BUTTON */}
+        {blocksToDelete.size > 0 && (
+            <button onClick={executeBulkDelete} className="w-full py-3 rounded-xl text-base md:text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 bg-red-500 text-white hover:bg-red-600">
+                🗑️ Delete {blocksToDelete.size} Selected
+            </button>
+        )}
+
         {selected.size > 0 && !showExtraPanel ? (
             <button onClick={confirm} className={`w-full py-3 rounded-xl text-base md:text-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2`} style={{ backgroundColor: isActiveItaJob ? "#22c55e" : activeExtraActivity ? "#eab308" : PTLAB.mainBlue, color: PTLAB.white }}>
                 Confirm {selected.size} {isActiveItaJob || activeExtraActivity ? "Blocks" : "Sessions"}
@@ -998,11 +1089,11 @@ export default function PTLabScheduler() {
             <button onClick={finalizeSelectedDays} className="w-full py-3 rounded-xl text-base md:text-lg font-bold shadow-sm border-2 transition-all flex items-center justify-center gap-2 bg-green-50 text-green-700 border-green-400 hover:bg-green-100">
                 ✅ Finalize {selectedDaysToFinalize.size} Selected Day(s)
             </button>
-        ) : (
+        ) : blocksToDelete.size === 0 ? (
             <div className="w-full py-3 rounded-xl text-xs md:text-sm font-bold border flex items-center justify-center text-gray-400 border-gray-200 bg-gray-50 text-center px-2 shadow-inner">
                 👆 Click a Day Header (e.g. Mon) to finalize attendance
             </div>
-        )}
+        ) : null}
       </footer>
     </main>
   );
