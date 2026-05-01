@@ -37,6 +37,7 @@ export default function ItaReportDashboard() {
   const [invoiceBookings, setInvoiceBookings] = useState<Booking[]>([]);
   const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]);
   const [unitPrice, setUnitPrice] = useState<number>(70);
+  const [ccEmails, setCcEmails] = useState<string>(""); 
   
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomQty, setNewCustomQty] = useState("1");
@@ -77,6 +78,7 @@ export default function ItaReportDashboard() {
 
     setInvoiceClient(client);
     setUnitPrice(70);
+    setCcEmails(""); // Reset CC field
     
     const unpaidHours = Math.abs(client.sessions_remaining);
     const totalBlocks = (data || []).length;
@@ -252,7 +254,8 @@ export default function ItaReportDashboard() {
           const response = await fetch('/api/email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ emailTo: targetEmail, clientName: displayName, invoiceNumber, totalDue, htmlBody })
+              // Passing ccEmails to the API Route
+              body: JSON.stringify({ emailTo: targetEmail, ccEmails, clientName: displayName, invoiceNumber, totalDue, htmlBody })
           });
           const result = await response.json();
           if (result.success) alert(`✅ Invoice successfully emailed to ${targetEmail}!`);
@@ -326,6 +329,11 @@ export default function ItaReportDashboard() {
                             <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Global Hourly Rate ($)</label>
                             <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => handleUnitPriceChange(Number(e.target.value))} />
+                            
+                            <div className="border-t border-gray-100 pt-4 mt-4">
+                                <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">CC Emails (Optional)</label>
+                                <input type="text" placeholder="e.g. partner@email.com" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={ccEmails} onChange={e => setCcEmails(e.target.value)} />
+                            </div>
                         </div>
 
                         <div className="border-t border-gray-100 pt-4">
@@ -339,7 +347,6 @@ export default function ItaReportDashboard() {
                             <button onClick={addCustomItem} className="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold transition-colors">Add Item</button>
                         </div>
 
-                        {/* BILLING ADJUSTMENT */}
                         <div className="border-t border-gray-100 pt-4">
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Billing Adjustment</label>
                             <button onClick={addAutoRounding} className="w-full mb-2 bg-gray-100 hover:bg-gray-200 text-[#166534] py-2 rounded-lg font-bold transition-colors text-xs">

@@ -43,6 +43,7 @@ export default function PTReportDashboard() {
   const [invoiceClient, setInvoiceClient] = useState<Client | null>(null);
   const [invoiceLines, setInvoiceLines] = useState<LineItem[]>([]);
   const [unitPrice, setUnitPrice] = useState<number>(75);
+  const [ccEmails, setCcEmails] = useState<string>("");
   
   const [newCustomDesc, setNewCustomDesc] = useState("");
   const [newCustomPrice, setNewCustomPrice] = useState("");
@@ -83,6 +84,7 @@ export default function PTReportDashboard() {
     setInvoiceClient(client);
     const defaultRate = client.type === 'intro' ? 50 : 75;
     setUnitPrice(defaultRate);
+    setCcEmails(""); // Reset CC field for new invoice
     
     const initialLines: LineItem[] = (data || []).map((b, i) => {
         const datePart = b.slot_key.split('|')[0];
@@ -119,6 +121,7 @@ export default function PTReportDashboard() {
       setInvoiceClient(client);
       const defaultRate = client.type === 'intro' ? 50 : 75;
       setUnitPrice(defaultRate);
+      setCcEmails(""); // Reset CC field
 
       const initialLines: LineItem[] = [{
           id: `pkg-${Date.now()}`,
@@ -279,7 +282,8 @@ export default function PTReportDashboard() {
           const response = await fetch('/api/email', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ emailTo: targetEmail, clientName: displayName, invoiceNumber, totalDue, htmlBody })
+              // Passing ccEmails to the API Route
+              body: JSON.stringify({ emailTo: targetEmail, ccEmails, clientName: displayName, invoiceNumber, totalDue, htmlBody })
           });
           const result = await response.json();
           if (result.success) alert(`✅ Invoice successfully emailed to ${targetEmail}!`);
@@ -485,6 +489,11 @@ export default function PTReportDashboard() {
                         <h3 className="font-bold text-lg mb-4 text-[#16202e]">Invoice Settings</h3>
                         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">Global Unit Price ($)</label>
                         <input type="number" className="w-full p-2 border border-gray-300 rounded-lg font-bold text-lg text-[#16202e]" value={unitPrice} onChange={e => handleUnitPriceChange(Number(e.target.value))} />
+                        
+                        <div className="border-t border-gray-100 pt-4 mt-4">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider block mb-2">CC Emails (Optional)</label>
+                            <input type="text" placeholder="e.g. partner@email.com" className="w-full p-2 border border-gray-300 rounded-lg text-sm text-[#16202e]" value={ccEmails} onChange={e => setCcEmails(e.target.value)} />
+                        </div>
                     </div>
 
                     <div className="border-t border-gray-100 pt-4">

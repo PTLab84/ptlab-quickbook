@@ -6,12 +6,15 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
   try {
-    const { emailTo, clientName, invoiceNumber, totalDue, htmlBody } = await req.json();
+    // Added ccEmails here
+    const { emailTo, ccEmails, clientName, invoiceNumber, totalDue, htmlBody } = await req.json();
 
-    // 1. Send the actual invoice directly to the client (Removed the BCC)
+    // 1. Send the actual invoice directly to the client
     const clientEmail = await resend.emails.send({
       from: 'Pro Training Lab <invoices@protraininglab.com.au>', 
       to: [emailTo], 
+      // This splits "a@b.com, c@d.com" into an array and removes extra spaces
+      cc: ccEmails ? ccEmails.split(',').map((e: string) => e.trim()).filter(Boolean) : undefined,
       subject: `Invoice #${invoiceNumber} - ${clientName}`,
       html: htmlBody,
     });
@@ -22,6 +25,7 @@ export async function POST(req: Request) {
         <h2 style="margin-top: 0; color: #16202e;">✅ System Delivery Receipt</h2>
         <p style="margin: 5px 0;"><strong>Client:</strong> ${clientName}</p>
         <p style="margin: 5px 0;"><strong>Emailed To:</strong> <a href="mailto:${emailTo}">${emailTo}</a></p>
+        ${ccEmails ? `<p style="margin: 5px 0;"><strong>CC'd To:</strong> ${ccEmails}</p>` : ''}
         <p style="margin: 5px 0;"><strong>Invoice #:</strong> ${invoiceNumber}</p>
         <p style="margin: 5px 0;"><strong>Amount Due:</strong> $${Number(totalDue).toFixed(2)}</p>
         <p style="margin: 15px 0 0 0; font-size: 12px; color: #666;">Below is the exact copy of the invoice that was sent to the client.</p>
